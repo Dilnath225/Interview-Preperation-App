@@ -1,0 +1,119 @@
+// Prisma Schema for AI Mentor - Interview Preparation App
+// Optimized for SQLite / PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String             @id @default(uuid())
+  email          String             @unique
+  password       String
+  name           String
+  targetRole     String?            @default("Full Stack Developer")
+  readinessScore Int?               @default(65)
+  skills         String?            @default("React, TypeScript, Node.js, SQL")
+  avatarUrl      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  interviews     InterviewSession[]
+  submissions    CodingSubmission[]
+  resumes        ResumeDiagnostic[]
+  chatMessages   ChatMessage[]
+}
+
+model InterviewSession {
+  id           String              @id @default(uuid())
+  userId       String
+  type         String              // BEHAVIORAL, TECHNICAL, SYSTEM_DESIGN
+  role         String              @default("Software Engineer")
+  difficulty   String              @default("Medium")
+  overallScore Int?
+  feedback     String?
+  status       String              @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions    InterviewQuestion[]
+}
+
+model InterviewQuestion {
+  id           String           @id @default(uuid())
+  sessionId    String
+  questionText String
+  category     String           @default("General")
+  difficulty   String           @default("Medium")
+  userAnswer   String?
+  aiFeedback   String?
+  score        Int?
+  audioUrl     String?
+  createdAt    DateTime         @default(now())
+
+  session      InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model CodingChallenge {
+  id             String             @id @default(uuid())
+  title          String
+  slug           String             @unique
+  category       String             // Algorithms, Data Structures, Database, System
+  difficulty     String             // Easy, Medium, Hard
+  description    String
+  starterCode    String
+  testCases      String             // JSON string of inputs and expected outputs
+  hints          String?            // JSON string array
+  acceptanceRate String             @default("72%")
+  createdAt      DateTime           @default(now())
+
+  submissions    CodingSubmission[]
+}
+
+model CodingSubmission {
+  id          String          @id @default(uuid())
+  userId      String
+  challengeId String
+  code        String
+  language    String          @default("typescript")
+  status      String          // ACCEPTED, WRONG_ANSWER, RUNTIME_ERROR
+  score       Int             @default(0)
+  output      String?
+  createdAt   DateTime        @default(now())
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge   CodingChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+}
+
+model ResumeDiagnostic {
+  id              String   @id @default(uuid())
+  userId          String
+  fileName        String
+  fileSize        Int?
+  overallScore    Int      @default(0)
+  atsScore        Int      @default(0)
+  formattingScore Int      @default(0)
+  impactScore     Int      @default(0)
+  extractedText   String?
+  suggestions     String   // JSON string array
+  missingKeywords String   // JSON string array
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  sender    String   // USER, AI
+  message   String
+  context   String?  // INTERVIEW_PREP, RESUME, GENERAL
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
