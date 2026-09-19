@@ -21,34 +21,56 @@ export class ChatService {
       },
     });
 
+    // Build conversation history text for multi-turn context
+    const historyText = pastMessages
+      .reverse()
+      .map((m) => `${m.sender === 'USER' ? 'Candidate' : 'AI Mentor'}: ${m.message}`)
+      .join('\n');
+
+    // Fetch user profile for personalized RAG retrieval
+    let userProfile: { targetRole: string | null; skills: string | null } | null = null;
+    try {
+      userProfile = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { targetRole: true, skills: true },
+      });
+    } catch (err) {
+      console.warn('Could not fetch user profile for RAG context');
+    }
+
     let aiReply = '';
 
-    // A. Priority 1: Call Python ML Microservice (FastAPI + Gemini LLM) on port 8000
+    // A. Priority 1: Call Python ML Microservice (FastAPI + RAG + Gemini LLM)
     try {
+      const mlServiceUrl = ENV.ML_SERVICE_URL || 'http://localhost:8001';
       const mlResponse = await axios.post(
-        'http://localhost:8000/api/ai/chat',
+        `${mlServiceUrl}/api/ai/chat`,
         {
           message: userMessage,
           context,
+          history: historyText,
+          user_profile: userProfile
+            ? {
+                targetRole: userProfile.targetRole || 'Software Engineer',
+                skills: userProfile.skills || '',
+              }
+            : undefined,
         },
-        { timeout: 8000 }
+        { timeout: 15000 }
       );
 
       if (mlResponse.data?.reply) {
         aiReply = mlResponse.data.reply;
       }
     } catch (err: any) {
-      console.log('Python ML microservice not reachable or timed out, trying direct Gemini API...');
+      console.log(
+        'Python ML microservice (RAG) not reachable or timed out, trying direct Gemini API...'
+      );
     }
 
-    // B. Priority 2: Direct Google Gemini 1.5 Flash API Call
+    // B. Priority 2: Direct Google Gemini 1.5 Flash API Call (without RAG)
     if (!aiReply && ENV.GEMINI_API_KEY) {
       try {
-        const historyText = pastMessages
-          .reverse()
-          .map((m) => `${m.sender === 'USER' ? 'Candidate' : 'AI Mentor'}: ${m.message}`)
-          .join('\n');
-
         const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering internships, junior developer roles, and tech interviews in Sri Lanka and globally.
 Provide a crisp, encouraging, highly structured response using markdown formatting, bullet points, and real-world software engineering best practices (STAR method, system design tradeoffs, algorithmic complexity).
 

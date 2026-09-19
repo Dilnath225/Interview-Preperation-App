@@ -9,4 +9,5 @@ export const ENV = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  ML_SERVICE_URL: process.env.ML_SERVICE_URL || 'http://localhost:8001',
 };
