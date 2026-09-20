@@ -28,14 +28,67 @@ const axiosInstance = axios.create({
   },
 });
 
+// Helper for storage compatibility (Web vs Native)
+const storage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      try {
+        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (e) {
+      return null;
+    }
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+      } catch (e) {}
+      return;
+    }
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch (e) {}
+  },
+  async removeItem(key: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+      } catch (e) {}
+      return;
+    }
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (e) {}
+  },
+};
+
+let inMemoryToken: string | null = null;
+
 axiosInstance.interceptors.request.use(async (config) => {
   try {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    let token = inMemoryToken;
+    if (!token) {
+      token = await storage.getItem(TOKEN_KEY);
+      if (token) {
+        inMemoryToken = token;
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+    }
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      if (config.headers && typeof (config.headers as any).set === 'function') {
+        (config.headers as any).set('Authorization', `Bearer ${token}`);
+      } else {
+        (config.headers as any)['Authorization'] = `Bearer ${token}`;
+      }
     }
   } catch (err) {
-    console.warn('Error reading token from SecureStore', err);
+    console.warn('Error reading token from storage', err);
   }
   return config;
 });
@@ -44,9 +97,12 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      console.log('Unauthorized request. Logging out...');
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      // Trigger a redirect if needed, handled by AuthContext
+      console.log('[API] 401 Unauthorized encountered on:', error.config?.url);
+      if (error.config?.url?.includes('/auth/me')) {
+        inMemoryToken = null;
+        delete axiosInstance.defaults.headers.common['Authorization'];
+        await storage.removeItem(TOKEN_KEY);
+      }
     }
     return Promise.reject(error);
   }
@@ -54,15 +110,19 @@ axiosInstance.interceptors.response.use(
 
 class ApiClient {
   async setToken(token: string | null) {
+    inMemoryToken = token;
     if (token) {
-      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      await storage.setItem(TOKEN_KEY, token);
     } else {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      delete axiosInstance.defaults.headers.common['Authorization'];
+      await storage.removeItem(TOKEN_KEY);
     }
   }
 
   async getToken(): Promise<string | null> {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
+    if (inMemoryToken) return inMemoryToken;
+    return await storage.getItem(TOKEN_KEY);
   }
 
   private async request<T>(
@@ -72,7 +132,15 @@ class ApiClient {
   ): Promise<{ success: boolean; data?: T; message?: string }> {
     try {
       const response = await axiosInstance({ method, url: endpoint, data });
-      return { success: true, data: response.data as T };
+      const body = response.data;
+      if (body && typeof body === 'object' && 'success' in body) {
+        return {
+          success: body.success !== false,
+          data: (body.data !== undefined ? body.data : body) as T,
+          message: body.message,
+        };
+      }
+      return { success: true, data: body as T };
     } catch (err: any) {
       console.warn(`[API] Error on ${endpoint}:`, err.message);
       return {

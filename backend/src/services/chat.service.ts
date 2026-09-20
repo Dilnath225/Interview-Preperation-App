@@ -83,7 +83,7 @@ ${userMessage}
 AI Mentor Response:`;
 
         const response = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${ENV.GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${ENV.GEMINI_API_KEY}`,
           {
             contents: [
               {

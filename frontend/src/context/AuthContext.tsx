@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedUser = await SafeStorage.getItem('auth_user');
 
       if (storedToken && storedUser) {
-        api.setToken(storedToken);
+        await api.setToken(storedToken);
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
 
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearSession = async () => {
-    api.setToken(null);
+    await api.setToken(null);
     setToken(null);
     setUser(null);
     await SafeStorage.removeItem('auth_token');
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user: userData, token: authToken } = res.data;
       setUser(userData);
       setToken(authToken);
-      api.setToken(authToken);
+      await api.setToken(authToken);
       await SafeStorage.setItem('auth_token', authToken);
       await SafeStorage.setItem('auth_user', JSON.stringify(userData));
       return { success: true };
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user: userData, token: authToken } = res.data;
       setUser(userData);
       setToken(authToken);
-      api.setToken(authToken);
+      await api.setToken(authToken);
       await SafeStorage.setItem('auth_token', authToken);
       await SafeStorage.setItem('auth_user', JSON.stringify(userData));
       return { success: true };

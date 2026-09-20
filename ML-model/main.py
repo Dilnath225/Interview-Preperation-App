@@ -54,13 +54,13 @@ class RAGSearchRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the RAG service on startup — load knowledge base into ChromaDB."""
-    print("🔄 Initializing RAG service...")
+    print("[*] Initializing RAG service...")
     success = RAGService.initialize()
     if success:
         status = RAGService.get_status()
-        print(f"✅ RAG service ready! {status['document_count']} document chunks loaded.")
+        print(f"[OK] RAG service ready! {status['document_count']} document chunks loaded.")
     else:
-        print("⚠️ RAG service initialization failed. Chatbot will use fallback responses.")
+        print("[WARN] RAG service initialization failed. Chatbot will use fallback responses.")
 
 
 @app.get("/")
@@ -160,5 +160,5 @@ def rag_search(payload: RAGSearchRequest):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")
-    print(f"🚀 Starting Python ML Microservice (with RAG) on http://{host}:{port}")
+    print(f"[START] Starting Python ML Microservice (with RAG) on http://{host}:{port}")
     uvicorn.run("main:app", host=host, port=port, reload=True)

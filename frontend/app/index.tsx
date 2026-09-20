@@ -8,21 +8,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../src/constants/theme';
 
+import { useAuth } from '../src/context/AuthContext';
+
 export default function SplashScreen() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const [progress] = useState(new Animated.Value(0));
 
   useEffect(() => {
     // Animate loading bar
     Animated.timing(progress, {
       toValue: 1,
-      duration: 2200,
+      duration: 1200,
       useNativeDriver: false,
     }).start(() => {
-      // Navigate to onboarding screen
-      router.replace('/onboarding');
+      if (!isLoading) {
+        if (isAuthenticated) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/onboarding');
+        }
+      }
     });
-  }, []);
+  }, [isAuthenticated, isLoading]);
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],

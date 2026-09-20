@@ -54,11 +54,11 @@ class RAGService:
                 )
                 # Test connection
                 cls._client.heartbeat()
-                print(f"[RAGService] ✅ Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
+                print(f"[RAGService] [OK] Connected to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}")
             except Exception as e:
-                print(f"[RAGService] ⚠️ ChromaDB Docker not reachable ({e}), using in-memory fallback...")
+                print(f"[RAGService] [WARN] ChromaDB Docker not reachable ({e}), using in-memory fallback...")
                 cls._client = chromadb.Client(Settings(anonymized_telemetry=False))
-                print("[RAGService] ✅ Using in-memory ChromaDB (data will not persist across restarts)")
+                print("[RAGService] [OK] Using in-memory ChromaDB (data will not persist across restarts)")
 
             # Get or create collection with default embedding function
             # ChromaDB's default uses sentence-transformers all-MiniLM-L6-v2
@@ -70,7 +70,7 @@ class RAGService:
             # Check if collection already has documents
             existing_count = cls._collection.count()
             if existing_count > 0:
-                print(f"[RAGService] ✅ Collection already has {existing_count} documents. Skipping ingestion.")
+                print(f"[RAGService] [OK] Collection already has {existing_count} documents. Skipping ingestion.")
                 cls._initialized = True
                 return True
 
@@ -78,7 +78,7 @@ class RAGService:
             documents, metadatas, ids = cls._load_and_chunk_documents()
 
             if not documents:
-                print("[RAGService] ⚠️ No knowledge base documents found. RAG will work without context.")
+                print("[RAGService] [WARN] No knowledge base documents found. RAG will work without context.")
                 cls._initialized = True
                 return True
 
@@ -95,16 +95,16 @@ class RAGService:
                     ids=batch_ids,
                 )
 
-            print(f"[RAGService] ✅ Ingested {len(documents)} document chunks into ChromaDB.")
+            print(f"[RAGService] [OK] Ingested {len(documents)} document chunks into ChromaDB.")
             cls._initialized = True
             return True
 
         except ImportError as e:
-            print(f"[RAGService] ❌ Missing dependency: {e}. Install with: pip install chromadb sentence-transformers")
+            print(f"[RAGService] [ERROR] Missing dependency: {e}. Install with: pip install chromadb sentence-transformers")
             cls._initialized = False
             return False
         except Exception as e:
-            print(f"[RAGService] ❌ Initialization failed: {e}")
+            print(f"[RAGService] [ERROR] Initialization failed: {e}")
             cls._initialized = False
             return False
 

@@ -22,7 +22,7 @@ class GeminiService:
     def get_model():
         if not genai or not GEMINI_API_KEY:
             return None
-        return genai.GenerativeModel("gemini-1.5-flash")
+        return genai.GenerativeModel("gemini-3.6-flash")
 
     @classmethod
     def generate_chat_response(cls, user_message: str, context: str = "GENERAL",

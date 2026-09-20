@@ -15,6 +15,14 @@ import rateLimit from 'express-rate-limit';
 
 const app: Application = express();
 
+// Middlewares
+app.use(
+  cors({
+    origin: '*',
+    credentials: true,
+  })
+);
+
 // Security Middlewares
 app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
@@ -26,13 +34,6 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Middlewares
-app.use(
-  cors({
-    origin: '*',
-    credentials: true,
-  })
-);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
