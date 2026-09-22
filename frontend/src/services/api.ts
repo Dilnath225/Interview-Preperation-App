@@ -128,10 +128,11 @@ class ApiClient {
   private async request<T>(
     method: 'get' | 'post' | 'put' | 'delete',
     endpoint: string,
-    data?: any
+    data?: any,
+    headers?: any
   ): Promise<{ success: boolean; data?: T; message?: string }> {
     try {
-      const response = await axiosInstance({ method, url: endpoint, data });
+      const response = await axiosInstance({ method, url: endpoint, data, headers });
       const body = response.data;
       if (body && typeof body === 'object' && 'success' in body) {
         return {
@@ -221,6 +222,23 @@ class ApiClient {
   // --- Resume ATS Diagnostic ---
   async getResumeHistory() {
     return this.request<{ resumes: any[] }>('get', '/resume/history');
+  }
+  async uploadResume(file: any) {
+    const formData = new FormData();
+    
+    if (Platform.OS === 'web' && file.file) {
+      formData.append('resume', file.file);
+    } else {
+      formData.append('resume', {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType || 'application/pdf',
+      } as any);
+    }
+    
+    return this.request<any>('post', '/resume/analyze', formData, {
+      'Content-Type': 'multipart/form-data',
+    });
   }
 }
 

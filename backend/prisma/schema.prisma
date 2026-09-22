@@ -102,6 +102,7 @@ model ResumeDiagnostic {
   extractedText   String?
   suggestions     String   // JSON string array
   missingKeywords String   // JSON string array
+  strengths       String?  // JSON string array
   createdAt       DateTime @default(now())
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)

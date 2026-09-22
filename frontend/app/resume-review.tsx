@@ -20,6 +20,8 @@ import { ProgressRing } from '../src/components/ProgressRing';
 import { Button } from '../src/components/Button';
 import { api } from '../src/services/api';
 
+import * as DocumentPicker from 'expo-document-picker';
+
 export default function ResumeReviewScreen() {
   const router = useRouter();
   const [analyzing, setAnalyzing] = useState(false);
@@ -55,38 +57,30 @@ export default function ResumeReviewScreen() {
     }
   };
 
-  const handleUpload = () => {
-    // In a real app, we'd use expo-document-picker here.
-    // For now, simulate an upload and show the ATS diagnostic.
-    setAnalyzing(true);
+  const handleUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
 
-    Alert.alert(
-      'Resume Upload',
-      'In the full build, this uses expo-document-picker to upload PDFs. For now, showing a simulated ATS analysis.',
-      [
-        {
-          text: 'Simulate Analysis',
-          onPress: async () => {
-            // Show simulated result
-            setTimeout(() => {
-              setResult({
-                overallScore: 82,
-                atsScore: 85,
-                formattingScore: 88,
-                impactScore: 78,
-                suggestions: [
-                  'Quantify achievements (e.g. "Reduced API latency by 40%").',
-                  'Add missing keywords: Docker, CI/CD, Microservices.',
-                  'Use strong action verbs: "Architected", "Engineered", "Optimized".',
-                ],
-                missingKeywords: ['Docker', 'CI/CD', 'Microservices', 'AWS'],
-              });
-              setAnalyzing(false);
-            }, 800);
-          },
-        },
-      ]
-    );
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      setAnalyzing(true);
+
+      const response = await api.uploadResume(file);
+      
+      if (response.success && response.data) {
+        setResult(response.data);
+      } else {
+        Alert.alert('Upload Failed', response.message || 'Failed to analyze resume.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'An unexpected error occurred during upload.');
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const overallScore = result?.overallScore || 0;
