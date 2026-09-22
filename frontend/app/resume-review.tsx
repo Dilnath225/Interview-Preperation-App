@@ -48,6 +48,7 @@ export default function ResumeReviewScreen() {
           impactScore: latest.impactScore,
           suggestions: JSON.parse(latest.suggestions || '[]'),
           missingKeywords: JSON.parse(latest.missingKeywords || '[]'),
+          analyzedRole: latest.analyzedRole || null,
         });
       }
     } catch (err) {
@@ -136,6 +137,15 @@ export default function ResumeReviewScreen() {
 
         {result && (
           <>
+            {/* Analyzed Role Badge */}
+            {result.analyzedRole && (
+              <View style={styles.roleBadgeContainer}>
+                <Ionicons name="briefcase-outline" size={14} color={Colors.primary} />
+                <Text style={styles.roleBadgeText}>Analyzed for: </Text>
+                <Text style={styles.roleBadgeRole}>{result.analyzedRole}</Text>
+              </View>
+            )}
+
             {/* Resume Score Card */}
             <View style={styles.scoreCard}>
               <View style={styles.scoreInfo}>
@@ -146,10 +156,10 @@ export default function ResumeReviewScreen() {
                 </View>
                 <Text style={styles.scoreDescription}>
                   {overallScore >= 85
-                    ? 'Excellent! Ready for top-tier applications.'
+                    ? `Excellent! Ready for top-tier ${result.analyzedRole || ''} applications.`
                     : overallScore >= 70
-                    ? 'Good foundation, needs ATS refinement.'
-                    : 'Needs significant improvements for ATS.'}
+                    ? `Good foundation for ${result.analyzedRole || 'this role'}, needs ATS refinement.`
+                    : `Needs improvements for ${result.analyzedRole || 'this role'} ATS compatibility.`}
                 </Text>
               </View>
 
@@ -258,6 +268,9 @@ const styles = StyleSheet.create({
   uploadSubtitle: { fontSize: Typography.caption, color: Colors.textSecondary, marginBottom: Spacing.lg },
   browseButton: { backgroundColor: '#182436', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xl, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: '#24344A' },
   browseButtonText: { fontSize: Typography.bodySmall, fontWeight: Typography.semiBold, color: Colors.textPrimary },
+  roleBadgeContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 245, 212, 0.08)', paddingVertical: 8, paddingHorizontal: 14, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: 'rgba(0, 245, 212, 0.2)', marginBottom: Spacing.md, alignSelf: 'flex-start', gap: 6 },
+  roleBadgeText: { fontSize: Typography.caption, color: Colors.textSecondary },
+  roleBadgeRole: { fontSize: Typography.caption, fontWeight: Typography.bold, color: Colors.primary },
   scoreCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#101824', borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#1C293A', marginBottom: Spacing.xl },
   scoreInfo: { flex: 1 },
   scoreLabel: { fontSize: 10, fontWeight: Typography.bold, color: Colors.textMuted, letterSpacing: 1, marginBottom: Spacing.xs },
