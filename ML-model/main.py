@@ -42,6 +42,8 @@ class EvaluateAnswerRequest(BaseModel):
 class ResumeTextRequest(BaseModel):
     text: str
     target_role: Optional[str] = "Software Engineer"
+    industry: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 class RAGSearchRequest(BaseModel):
@@ -122,7 +124,12 @@ def ats_diagnostic(payload: ResumeTextRequest):
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Resume text cannot be empty")
 
-    result = ATSService.analyze_resume_text(payload.text, payload.target_role)
+    result = ATSService.analyze_resume_text(
+        payload.text,
+        payload.target_role,
+        industry=payload.industry,
+        job_description=payload.job_description,
+    )
     return {"success": True, "diagnostic": result}
 
 

@@ -20,7 +20,32 @@ try {
   console.warn('[ResumeService] tesseract.js not available, OCR disabled.');
 }
 
+export interface BulletOptimization {
+  original_text: string;
+  issue: string;
+  enterprise_rewrite: string;
+}
+
 export interface ResumeAnalysisResult {
+  // Enterprise-grade fields
+  ats_compatibility_score: number;
+  section_scores: {
+    keyword_alignment: number;
+    impact_and_metrics: number;
+    experience_relevance: number;
+    clarity_and_structure: number;
+  };
+  detected_domain: string;
+  executive_summary: string;
+  keyword_analysis: {
+    matched_keywords: string[];
+    missing_critical_keywords: string[];
+    recommended_certifications_or_tools: string[];
+  };
+  critical_red_flags: string[];
+  bullet_point_optimizations: BulletOptimization[];
+  tailored_action_plan: string[];
+  // Legacy compatibility fields
   overallScore: number;
   atsScore: number;
   formattingScore: number;
@@ -236,45 +261,68 @@ export class ResumeService {
   }
 
   /**
-   * AI-powered resume analysis using Gemini API, tailored to the target role.
+   * Enterprise-grade AI-powered resume analysis using Gemini API.
+   * Produces the full ATS evaluation schema with section_scores,
+   * executive_summary, bullet_point_optimizations, and more.
    */
   private static async analyzeWithGemini(
     resumeText: string,
     fileName: string,
     role: string
   ): Promise<ResumeAnalysisResult | null> {
-    const prompt = `You are an expert ATS (Applicant Tracking System) analyst and senior recruiter specializing in ${role} positions.
-Analyze the following resume text and provide a comprehensive ATS diagnostic specifically for a **${role}** position.
+    const prompt = `You are an Enterprise-Grade Applicant Tracking System (ATS) Parsing Engine and Executive Career Strategist.
 
-Resume File Name: "${fileName}"
+[TARGET_ROLE]: ${role}
+Resume File: "${fileName}"
 
-Resume Content:
+[RESUME_TEXT]
 """
-${resumeText.slice(0, 4000)}
+${resumeText.slice(0, 5000)}
 """
 
-Target Role: **${role}**
+# INPUT PROCESSING RULES
+1. The resume text may come from Tesseract OCR — do NOT penalize for OCR artifacts. Silently reconstruct intended words.
+2. Dynamically shift your evaluation rubric based on the TARGET_ROLE.
 
-Instructions:
-1. First, identify the top 15-20 industry-standard keywords, hard skills, and qualifications expected for a ${role}.
-2. Then, analyze the resume against those expected keywords.
-
-Evaluate rigorously across these dimensions:
-1. **ATS Score (0-100):** Keyword coverage specifically for a ${role}. Does the resume contain the critical skills expected?
-2. **Formatting Score (0-100):** Standard section headings, clean structure, ATS-parseable format, no tables/columns/images that break ATS.
-3. **Impact Score (0-100):** Quantified achievements, action verbs, XYZ formula usage ("Accomplished X as measured by Y by doing Z"). Evaluate impact relevance to ${role}.
-4. **Overall Score:** Weighted average of the three scores.
+# EVALUATION DIMENSIONS (weighted scoring)
+- Keyword & Semantic Alignment (30%): Hard skills, domain tools, methodologies matching ${role}.
+- Impact & Quantification (30%): Action verbs, measurable outcomes (XYZ/STAR formula).
+- Role & Seniority Fit (25%): Career progression, experience depth, certifications.
+- Structural & Clarity Index (15%): Logical sections, brevity, professional presentation.
 
 Return ONLY a valid JSON object with this exact schema:
 {
-  "overallScore": integer (0-100),
-  "atsScore": integer (0-100),
-  "formattingScore": integer (0-100),
-  "impactScore": integer (0-100),
-  "extractedKeywords": ["keyword1", "keyword2", ...] (keywords found in resume),
-  "missingKeywords": ["keyword1", "keyword2", ...] (max 6 critical ${role} keywords missing from the resume),
-  "suggestions": ["actionable tip 1", "actionable tip 2", ...] (3-5 tips specific to a ${role} application),
-  "strengths": ["strength 1", "strength 2", "strength 3"] (2-4 strengths)
+  "ats_compatibility_score": integer 0-100,
+  "section_scores": {
+    "keyword_alignment": integer 0-100,
+    "impact_and_metrics": integer 0-100,
+    "experience_relevance": integer 0-100,
+    "clarity_and_structure": integer 0-100
+  },
+  "detected_domain": "string: inferred industry and seniority level",
+  "executive_summary": "string: 2-3 sentence verdict on candidate readiness",
+  "keyword_analysis": {
+    "matched_keywords": ["string"],
+    "missing_critical_keywords": ["string"],
+    "recommended_certifications_or_tools": ["string"]
+  },
+  "critical_red_flags": ["string: specific weaknesses or role mismatches"],
+  "bullet_point_optimizations": [
+    {
+      "original_text": "string: weak bullet point from the CV",
+      "issue": "string: why it fails",
+      "enterprise_rewrite": "string: rewritten high-impact version"
+    }
+  ],
+  "tailored_action_plan": ["string: step-by-step improvements to reach 90+ score"],
+  "overallScore": same as ats_compatibility_score,
+  "atsScore": same as keyword_alignment,
+  "formattingScore": same as clarity_and_structure,
+  "impactScore": same as impact_and_metrics,
+  "extractedKeywords": same as matched_keywords,
+  "missingKeywords": first 6 of missing_critical_keywords,
+  "suggestions": first 5 of tailored_action_plan,
+  "strengths": ["string: 2-4 strengths"]
 }`;
 
     const response = await axios.post(
@@ -290,23 +338,43 @@ Return ONLY a valid JSON object with this exact schema:
     const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleaned);
 
-    // Validate the response shape
+    const clamp = (v: number) => Math.max(0, Math.min(100, v || 0));
+    const ss = parsed.section_scores || {};
+
     return {
-      overallScore: Math.max(0, Math.min(100, parsed.overallScore || 0)),
-      atsScore: Math.max(0, Math.min(100, parsed.atsScore || 0)),
-      formattingScore: Math.max(0, Math.min(100, parsed.formattingScore || 0)),
-      impactScore: Math.max(0, Math.min(100, parsed.impactScore || 0)),
-      extractedKeywords: Array.isArray(parsed.extractedKeywords) ? parsed.extractedKeywords : [],
-      missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords.slice(0, 6) : [],
-      suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+      ats_compatibility_score: clamp(parsed.ats_compatibility_score || parsed.overallScore),
+      section_scores: {
+        keyword_alignment: clamp(ss.keyword_alignment || parsed.atsScore),
+        impact_and_metrics: clamp(ss.impact_and_metrics || parsed.impactScore),
+        experience_relevance: clamp(ss.experience_relevance || 70),
+        clarity_and_structure: clamp(ss.clarity_and_structure || parsed.formattingScore),
+      },
+      detected_domain: parsed.detected_domain || `Technology — ${role}`,
+      executive_summary: parsed.executive_summary || '',
+      keyword_analysis: {
+        matched_keywords: Array.isArray(parsed.keyword_analysis?.matched_keywords) ? parsed.keyword_analysis.matched_keywords : (Array.isArray(parsed.extractedKeywords) ? parsed.extractedKeywords : []),
+        missing_critical_keywords: Array.isArray(parsed.keyword_analysis?.missing_critical_keywords) ? parsed.keyword_analysis.missing_critical_keywords : (Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : []),
+        recommended_certifications_or_tools: Array.isArray(parsed.keyword_analysis?.recommended_certifications_or_tools) ? parsed.keyword_analysis.recommended_certifications_or_tools : [],
+      },
+      critical_red_flags: Array.isArray(parsed.critical_red_flags) ? parsed.critical_red_flags : [],
+      bullet_point_optimizations: Array.isArray(parsed.bullet_point_optimizations) ? parsed.bullet_point_optimizations : [],
+      tailored_action_plan: Array.isArray(parsed.tailored_action_plan) ? parsed.tailored_action_plan : [],
+      overallScore: clamp(parsed.ats_compatibility_score || parsed.overallScore),
+      atsScore: clamp(ss.keyword_alignment || parsed.atsScore),
+      formattingScore: clamp(ss.clarity_and_structure || parsed.formattingScore),
+      impactScore: clamp(ss.impact_and_metrics || parsed.impactScore),
+      extractedKeywords: Array.isArray(parsed.keyword_analysis?.matched_keywords) ? parsed.keyword_analysis.matched_keywords : (Array.isArray(parsed.extractedKeywords) ? parsed.extractedKeywords : []),
+      missingKeywords: (Array.isArray(parsed.keyword_analysis?.missing_critical_keywords) ? parsed.keyword_analysis.missing_critical_keywords : (Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [])).slice(0, 6),
+      suggestions: Array.isArray(parsed.tailored_action_plan) ? parsed.tailored_action_plan.slice(0, 5) : (Array.isArray(parsed.suggestions) ? parsed.suggestions : []),
       strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
       analyzedRole: role,
     };
   }
 
+
   /**
-   * Intelligent heuristic analysis when Gemini API is unavailable.
-   * Uses role-specific keywords for accurate scoring.
+   * Enterprise-grade heuristic analysis when Gemini API is unavailable.
+   * Produces the full ATS evaluation schema with all enterprise fields.
    */
   private static analyzeWithHeuristics(
     text: string,
@@ -328,7 +396,6 @@ Return ONLY a valid JSON object with this exact schema:
       }
     }
 
-    // Baseline: ensure at least some detected keywords for valid resumes
     if (detectedKeywords.length < 3 && text.length > 100) {
       const fallbackKws = coreKeywords.slice(0, 5);
       for (const kw of fallbackKws) {
@@ -336,90 +403,188 @@ Return ONLY a valid JSON object with this exact schema:
       }
     }
 
-    // --- ATS Score ---
+    // --- Keyword Alignment Score (30%) ---
     const keywordRatio = detectedKeywords.length / coreKeywords.length;
-    const atsScore = Math.min(96, Math.max(55, Math.round(50 + keywordRatio * 46)));
+    const keywordScore = Math.min(96, Math.max(40, Math.round(35 + keywordRatio * 61)));
 
-    // --- Formatting Score ---
-    const standardSections = [
-      'experience', 'education', 'skills', 'projects',
-      'work experience', 'technical skills', 'summary', 'objective',
-    ];
-    const foundSections = standardSections.filter((s) => textLower.includes(s));
-    const hasContactInfo = /[\w.-]+@[\w.-]+/.test(text) || /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(text);
-    const hasBullets = /[•\-\*]/.test(text);
-    const isSinglePage = text.length < 4000;
-
-    let formattingScore = 60;
-    formattingScore += Math.min(20, foundSections.length * 5);
-    if (hasContactInfo) formattingScore += 5;
-    if (hasBullets) formattingScore += 5;
-    if (isSinglePage) formattingScore += 5;
-    formattingScore = Math.min(95, formattingScore);
-
-    // --- Impact Score ---
+    // --- Impact & Metrics Score (30%) ---
     const actionVerbs = [
       'architected', 'engineered', 'optimized', 'implemented', 'developed',
       'designed', 'built', 'deployed', 'reduced', 'increased', 'improved',
-      'led', 'managed', 'delivered', 'automated', 'scaled',
+      'led', 'managed', 'delivered', 'automated', 'scaled', 'spearheaded',
     ];
     const foundActionVerbs = actionVerbs.filter((v) => textLower.includes(v));
-    const hasMetrics = /\d+%|\d+x|\$\d+|reduced|increased|improved\s+by/i.test(text);
-    const hasQuantifiedResults = /\d+\s*(users|customers|requests|transactions|ms|seconds)/i.test(text);
+    const hasMetrics = /\d+%|\d+x|\$[\d,]+|reduced|increased|improved\s+by/i.test(text);
+    const hasQuantified = /\d+\s*(users|customers|requests|transactions|ms|seconds|revenue)/i.test(text);
 
-    let impactScore = 55;
-    impactScore += Math.min(20, foundActionVerbs.length * 4);
-    if (hasMetrics) impactScore += 10;
-    if (hasQuantifiedResults) impactScore += 8;
-    impactScore = Math.min(95, impactScore);
+    let impactScore = 45;
+    impactScore += Math.min(25, foundActionVerbs.length * 5);
+    if (hasMetrics) impactScore += 12;
+    if (hasQuantified) impactScore += 10;
+    impactScore = Math.min(96, impactScore);
 
-    // --- Overall Score ---
-    const overallScore = Math.round((atsScore + formattingScore + impactScore) / 3);
+    // --- Experience Relevance Score (25%) ---
+    const standardSections = [
+      'experience', 'education', 'skills', 'projects',
+      'work experience', 'technical skills', 'summary', 'objective',
+      'certifications', 'achievements',
+    ];
+    const foundSections = standardSections.filter((s) => textLower.includes(s));
+    const hasContactInfo = /[\w.-]+@[\w.-]+/.test(text) || /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(text);
+    const hasEducation = textLower.includes('education') || textLower.includes('degree') || textLower.includes('university');
+    const hasExpYears = /\d+\+?\s*(years?|yrs?)\s*(of\s+)?experience/i.test(text);
 
-    // --- Suggestions (role-specific) ---
-    const suggestions: string[] = [];
+    let experienceScore = 50;
+    experienceScore += Math.min(20, foundSections.length * 4);
+    if (hasContactInfo) experienceScore += 5;
+    if (hasEducation) experienceScore += 8;
+    if (hasExpYears) experienceScore += 10;
+    experienceScore = Math.min(95, experienceScore);
 
+    // --- Clarity & Structure Score (15%) ---
+    const hasBullets = /[•\-\*]/.test(text);
+    const isSinglePage = text.length < 4000;
+
+    let clarityScore = 55;
+    if (hasBullets) clarityScore += 10;
+    if (isSinglePage) clarityScore += 8;
+    if (foundSections.length >= 3) clarityScore += 12;
+    if (hasContactInfo) clarityScore += 5;
+    clarityScore = Math.min(95, clarityScore);
+
+    // --- Weighted Overall Score ---
+    const overallScore = Math.round(
+      keywordScore * 0.30 +
+      impactScore * 0.30 +
+      experienceScore * 0.25 +
+      clarityScore * 0.15
+    );
+
+    // --- Detect Seniority ---
+    let seniority = 'Entry-Level / Intern';
+    if (hasExpYears) {
+      const ym = text.match(/(\d+)\+?\s*(years?|yrs?)/i);
+      const years = ym ? parseInt(ym[1], 10) : 0;
+      if (years >= 8) seniority = 'Senior / Staff Level';
+      else if (years >= 4) seniority = 'Mid-Level';
+      else if (years >= 1) seniority = 'Junior / Early Career';
+    }
+
+    // --- Executive Summary ---
+    let executiveSummary: string;
+    if (overallScore >= 85) {
+      executiveSummary = `Strong candidate profile for ${role} with excellent keyword alignment and quantified impact statements. Resume is well-positioned for ATS screening at top-tier organizations.`;
+    } else if (overallScore >= 70) {
+      executiveSummary = `Solid foundation for ${role} applications. Resume covers core competencies but needs refinement in impact quantification and keyword optimization to consistently pass enterprise ATS filters.`;
+    } else {
+      executiveSummary = `Resume requires significant enhancement for ${role} positions. Key gaps in industry-standard keywords, quantified achievements, and structural clarity will likely cause ATS rejection.`;
+    }
+
+    // --- Critical Red Flags ---
+    const redFlags: string[] = [];
+    if (!hasMetrics) redFlags.push('No quantified achievements — ATS systems deprioritize resumes without measurable impact.');
+    if (foundActionVerbs.length < 3) redFlags.push('Weak action verb usage — bullet points read as passive duty descriptions.');
+    if (foundSections.length < 3) redFlags.push('Missing standard resume sections — ATS parsers expect Skills, Experience, Education headings.');
+    if (!hasContactInfo) redFlags.push('Contact information not clearly detected — ensure email and phone are in the header.');
+    if (detectedKeywords.length < 5) redFlags.push(`Critical keyword gap — fewer than 5 of ${coreKeywords.length} expected industry keywords matched.`);
+
+    // --- Bullet Point Optimizations ---
+    const bulletOptimizations: BulletOptimization[] = [];
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (bulletOptimizations.length >= 3) break;
+      const stripped = line.trim();
+      if (stripped.startsWith('-') || stripped.startsWith('•') || stripped.startsWith('*')) {
+        const content = stripped.replace(/^[-•*]\s*/, '').trim();
+        if (content.length > 15) {
+          const hasVerb = actionVerbs.slice(0, 10).some((v) => content.toLowerCase().includes(v));
+          const hasNum = /\d/.test(content);
+          if (!hasVerb || !hasNum) {
+            bulletOptimizations.push({
+              original_text: content,
+              issue: !hasVerb ? 'Missing strong action verb — reads as a duty listing' : 'Lacks quantifiable metrics',
+              enterprise_rewrite: `Engineered/Optimized [specific system] resulting in [X]% improvement in [metric], by implementing [specific approach]`,
+            });
+          }
+        }
+      }
+    }
+    if (bulletOptimizations.length === 0) {
+      bulletOptimizations.push({
+        original_text: 'Worked on backend systems',
+        issue: 'Vague, no metrics, passive voice — fails ATS relevance scoring',
+        enterprise_rewrite: `Architected scalable backend microservices handling [X]K+ RPM, reducing API latency by [Y]% through Redis caching and query optimization`,
+      });
+    }
+
+    // --- Tailored Action Plan ---
+    const actionPlan: string[] = [];
     if (missingKeywords.length > 0) {
-      suggestions.push(
-        `Add these high-impact ${role} keywords to bypass ATS filters: ${missingKeywords.slice(0, 4).join(', ')}.`
-      );
+      actionPlan.push(`Add these critical ${role} keywords: ${missingKeywords.slice(0, 4).join(', ')}.`);
     }
     if (!hasMetrics) {
-      suggestions.push(
-        `Quantify your ${role} achievements with metrics (e.g., measurable impact numbers, percentages, or scale).`
-      );
+      actionPlan.push("Quantify every bullet using XYZ formula: 'Accomplished [X] as measured by [Y], by doing [Z]'.");
+    }
+    if (foundActionVerbs.length < 5) {
+      actionPlan.push('Replace passive language with power verbs: Architected, Spearheaded, Engineered, Automated, Scaled.');
     }
     if (foundSections.length < 4) {
-      suggestions.push(
-        'Include standard sections: Technical Skills, Work Experience, Projects, and Education.'
-      );
+      actionPlan.push('Add standard ATS sections: Technical Skills, Work Experience, Projects, Education, Certifications.');
     }
-    if (foundActionVerbs.length < 3) {
-      suggestions.push(
-        'Use strong action verbs: "Architected", "Optimized", "Engineered", "Deployed", "Scaled".'
-      );
-    }
-    suggestions.push(
-      `Tailor your resume specifically for ${role} positions using the XYZ formula: "Accomplished [X] as measured by [Y], by doing [Z]".`
-    );
+    actionPlan.push(`Tailor resume for each ${role} application using the job description's exact phrasing.`);
 
     // --- Strengths ---
     const strengths: string[] = [];
-    if (detectedKeywords.length >= 5) strengths.push(`Strong ${role}-relevant technology keyword presence`);
+    if (detectedKeywords.length >= 5) strengths.push(`Strong ${role}-relevant keyword presence`);
     if (foundSections.length >= 3) strengths.push('Well-structured resume with standard section headings');
     if (foundActionVerbs.length >= 3) strengths.push('Good use of action verbs demonstrating ownership');
     if (hasMetrics) strengths.push('Includes quantified results showing measurable impact');
-    if (isSinglePage) strengths.push(`Concise single-page format ideal for ${role} roles`);
+    if (isSinglePage) strengths.push(`Concise format ideal for ${role} roles`);
     if (strengths.length === 0) strengths.push('Resume submitted — good first step toward optimization');
 
+    // --- Certification Recommendations ---
+    const certMap: Record<string, string[]> = {
+      'Software Engineer': ['AWS Certified Solutions Architect', 'Google Cloud Professional', 'Kubernetes CKA/CKAD'],
+      'Frontend Developer': ['Google UX Design Certificate', 'Meta Front-End Developer', 'AWS Cloud Practitioner'],
+      'Backend Developer': ['AWS Certified Developer', 'Google Cloud Professional', 'Redis University Certification'],
+      'DevOps': ['AWS DevOps Professional', 'CKA (Certified Kubernetes Admin)', 'HashiCorp Terraform Associate'],
+      'Data Science': ['TensorFlow Developer Certificate', 'AWS ML Specialty', 'Google Data Analytics Professional'],
+    };
+    const roleLower = role.toLowerCase();
+    let recommendedCerts = certMap['Software Engineer'];
+    for (const [key, certs] of Object.entries(certMap)) {
+      if (roleLower.includes(key.toLowerCase())) {
+        recommendedCerts = certs;
+        break;
+      }
+    }
+
     return {
+      ats_compatibility_score: overallScore,
+      section_scores: {
+        keyword_alignment: keywordScore,
+        impact_and_metrics: impactScore,
+        experience_relevance: experienceScore,
+        clarity_and_structure: clarityScore,
+      },
+      detected_domain: `Technology — ${seniority}`,
+      executive_summary: executiveSummary,
+      keyword_analysis: {
+        matched_keywords: detectedKeywords,
+        missing_critical_keywords: missingKeywords.slice(0, 8),
+        recommended_certifications_or_tools: recommendedCerts,
+      },
+      critical_red_flags: redFlags,
+      bullet_point_optimizations: bulletOptimizations,
+      tailored_action_plan: actionPlan,
+      // Legacy compatibility
       overallScore,
-      atsScore,
-      formattingScore,
+      atsScore: keywordScore,
+      formattingScore: clarityScore,
       impactScore,
       extractedKeywords: detectedKeywords,
       missingKeywords: missingKeywords.slice(0, 6),
-      suggestions: suggestions.slice(0, 5),
+      suggestions: actionPlan.slice(0, 5),
       strengths: strengths.slice(0, 4),
       analyzedRole: role,
     };
@@ -427,6 +592,7 @@ Return ONLY a valid JSON object with this exact schema:
 
   /**
    * Persists the resume diagnostic result to the database.
+   * Stores the full enterprise-grade analysis as JSON in the existing columns.
    */
   private static async saveDiagnostic(
     userId: string,
@@ -434,6 +600,18 @@ Return ONLY a valid JSON object with this exact schema:
     result: ResumeAnalysisResult,
     extractedText: string
   ): Promise<void> {
+    // Build enterprise data payload for storage
+    const enterpriseData = {
+      ats_compatibility_score: result.ats_compatibility_score,
+      section_scores: result.section_scores,
+      detected_domain: result.detected_domain,
+      executive_summary: result.executive_summary,
+      keyword_analysis: result.keyword_analysis,
+      critical_red_flags: result.critical_red_flags,
+      bullet_point_optimizations: result.bullet_point_optimizations,
+      tailored_action_plan: result.tailored_action_plan,
+    };
+
     await prisma.resumeDiagnostic.create({
       data: {
         userId,
@@ -446,7 +624,10 @@ Return ONLY a valid JSON object with this exact schema:
         extractedText: extractedText.replace(/\0/g, '').slice(0, 2000),
         suggestions: JSON.stringify(result.suggestions),
         missingKeywords: JSON.stringify(result.missingKeywords),
-        strengths: JSON.stringify(result.strengths),
+        strengths: JSON.stringify({
+          strengths: result.strengths,
+          enterprise: enterpriseData,
+        }),
       },
     });
   }
