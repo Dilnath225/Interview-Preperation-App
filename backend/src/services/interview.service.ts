@@ -143,4 +143,41 @@ export class InterviewService {
 
     return session;
   }
+
+  static async getQuestionById(questionId: string) {
+    const question = await prisma.interviewQuestion.findUnique({
+      where: { id: questionId },
+      include: { session: true },
+    });
+
+    if (!question) {
+      throw ApiError.notFound('Interview question not found.');
+    }
+
+    return question;
+  }
+
+  static async submitAudioAnswerUpdate(dto: {
+    sessionId: string;
+    questionId: string;
+    userAnswer: string;
+    evaluation: any;
+    audioUrl: string;
+  }) {
+    // Update Question with user answer, audio URL, and AI feedback
+    const updatedQuestion = await prisma.interviewQuestion.update({
+      where: { id: dto.questionId },
+      data: {
+        userAnswer: dto.userAnswer,
+        audioUrl: dto.audioUrl,
+        score: dto.evaluation.score,
+        aiFeedback: JSON.stringify(dto.evaluation),
+      },
+    });
+
+    return {
+      question: updatedQuestion,
+      evaluation: dto.evaluation,
+    };
+  }
 }

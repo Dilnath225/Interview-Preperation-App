@@ -58,15 +58,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
 
-        // Verify token is still valid
-        const res = await api.getMe();
-        if (res.success && res.data?.user) {
-          setUser(res.data.user);
-          await SafeStorage.setItem('auth_user', JSON.stringify(res.data.user));
-        } else {
-          // Token expired or invalid
-          await clearSession();
-        }
+        // Verify token validity in the background (non-blocking)
+        // so the app doesn't hang if the backend is slow or unreachable
+        api.getMe().then(async (res) => {
+          if (res.success && res.data?.user) {
+            setUser(res.data.user);
+            await SafeStorage.setItem('auth_user', JSON.stringify(res.data.user));
+          } else {
+            // Token expired or invalid — clear session
+            console.warn('[Auth] Token validation failed, clearing session');
+            await clearSession();
+          }
+        }).catch(async (err) => {
+          console.warn('[Auth] Background token validation error:', err);
+          // Don't clear session on network errors (timeout, no connection)
+          // so the user can still use cached data offline
+        });
       }
     } catch (err) {
       console.warn('Failed to restore session:', err);

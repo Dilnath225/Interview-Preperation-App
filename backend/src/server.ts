@@ -19,9 +19,9 @@ async function startServer() {
     console.log('✅ Initial coding challenges bank verified.');
 
     // 3. Start Express HTTP Server
-    app.listen(PORT, () => {
-      console.log(`🚀 AI Mentor Backend running on http://localhost:${PORT}`);
-      console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 AI Mentor Backend running on http://0.0.0.0:${PORT}`);
+      console.log(`📡 Health Check: http://0.0.0.0:${PORT}/api/health`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

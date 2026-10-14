@@ -22,7 +22,7 @@ class GeminiService:
     def get_model():
         if not genai or not GEMINI_API_KEY:
             return None
-        return genai.GenerativeModel("gemini-3.6-flash")
+        return genai.GenerativeModel("gemini-3.5-flash")
 
     @classmethod
     def generate_chat_response(cls, user_message: str, context: str = "GENERAL",
@@ -128,6 +128,8 @@ class GeminiService:
     def _generate_static_fallback(cls, user_message: str) -> str:
         """Legacy static fallback responses when neither LLM nor RAG context is available."""
         lower = user_message.lower()
+        
+        # Behavioral & Strategy
         if "star" in lower or "behavioral" in lower:
             return (
                 "🎯 **STAR Method Formula for Behavioral Questions:**\n\n"
@@ -168,10 +170,80 @@ class GeminiService:
                 "3. Always discuss brute force first, then optimize.\n"
                 "4. Think aloud — interviewers evaluate your problem-solving process."
             )
+            
+        # JS Frameworks
+        elif "react" in lower or "nextjs" in lower:
+            return (
+                "⚛️ **React & Next.js Knowledge:**\n\n"
+                "- **Virtual DOM:** React batches UI updates using the V-DOM.\n"
+                "- **Hooks:** Use `useState` for state, `useEffect` for side-effects, `useMemo` for optimization.\n"
+                "- **Next.js:** Focus on SSR vs SSG for performance and SEO."
+            )
+        elif "angular" in lower:
+            return (
+                "🛡️ **Angular Knowledge:**\n\n"
+                "- **Architecture:** Modules, Components, Services, and Dependency Injection.\n"
+                "- **RxJS:** Observables and operators (`map`, `switchMap`).\n"
+                "- **Change Detection:** Zone.js, Default vs OnPush."
+            )
+        elif "vue" in lower:
+            return (
+                "🟢 **Vue.js Knowledge:**\n\n"
+                "- **Reactivity:** Proxies (Vue 3) / Object.defineProperty (Vue 2).\n"
+                "- **Composition API:** `setup()`, `ref`, and `reactive`.\n"
+                "- **Directives:** `v-model`, `v-if`, `v-for`."
+            )
+            
+        # Backend & Languages
+        elif "node" in lower or "express" in lower:
+            return (
+                "🟩 **Node.js & Express:**\n\n"
+                "- **Event Loop:** Single-threaded async I/O model (timers, poll, check).\n"
+                "- **Express:** Middleware and routing.\n"
+                "- **Performance:** Use worker threads for CPU tasks, streams for heavy data."
+            )
+        elif "python" in lower or "django" in lower or "fastapi" in lower:
+            return (
+                "🐍 **Python & Frameworks:**\n\n"
+                "- **Core:** GIL, decorators, generators.\n"
+                "- **FastAPI:** Async IO, Pydantic validation, dependency injection.\n"
+                "- **Django:** ORM, MVC (MVT) architecture."
+            )
+        elif "java " in lower or "spring" in lower:
+            return (
+                "☕ **Java & Spring Boot:**\n\n"
+                "- **OOP:** Encapsulation, Inheritance, Polymorphism.\n"
+                "- **JVM:** Garbage Collection, Heap vs Stack.\n"
+                "- **Spring:** Dependency Injection (IoC), MVC, Data JPA."
+            )
+        elif "javascript" in lower or "js" in lower:
+            return (
+                "📜 **JavaScript Fundamentals:**\n\n"
+                "- **Closures:** Functions remembering their lexical scope.\n"
+                "- **Promises:** Handling async operations (Async/Await).\n"
+                "- **Event Delegation:** Attaching one listener to a parent element."
+            )
+            
+        # Databases & APIs
+        elif "sql" in lower or "database" in lower or "mongodb" in lower:
+            return (
+                "🗄️ **Databases:**\n\n"
+                "- **SQL:** ACID, Normalization, Joins, B-Tree Indexes.\n"
+                "- **NoSQL (MongoDB):** Schema-less, eventual consistency, horizontal sharding."
+            )
+        elif "api" in lower or "rest" in lower or "graphql" in lower:
+            return (
+                "🌐 **APIs:**\n\n"
+                "- **REST:** Stateless, standard HTTP methods.\n"
+                "- **GraphQL:** Solves over/under-fetching, single endpoint.\n"
+                "- **Security:** JWT authentication, CORS, rate limiting."
+            )
+
         return (
-            "That's an excellent question! In software engineering interviews, focus on clear problem decomposition, "
-            "discussing trade-offs (Time vs Space complexity), and communicating your thought process proactively. "
-            "Would you like to practice a mock question on this?"
+            "🤖 **Offline AI Mentor:**\n\n"
+            "I am currently operating in offline fallback mode. "
+            "However, remember to clarify problems, discuss trade-offs, and think aloud in your interviews!\n\n"
+            "Ask me specific questions about React, Angular, Node, Python, Java, SQL, or System Design!"
         )
 
     @classmethod

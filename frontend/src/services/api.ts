@@ -5,23 +5,36 @@ import * as SecureStore from 'expo-secure-store';
 
 const getBaseUrl = (): string => {
   if (Platform.OS === 'web') return 'http://localhost:5000/api';
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any).manifest?.debuggerHost ||
-    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') return `http://${ip}:5000/api`;
+
+  const candidates = [
+    Constants.expoConfig?.hostUri,
+    (Constants as any).expoGoConfig?.debuggerHost,
+    (Constants as any).manifest?.debuggerHost,
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost,
+    (Constants as any).experienceUrl,
+    Constants.linkingUri,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const match = candidate.match(/(?:exp:\/\/|https?:\/\/)?([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/);
+      if (match && match[1] && match[1] !== '127.0.0.1') {
+        return `http://${match[1]}:5000/api`;
+      }
+    }
   }
-  if (Platform.OS === 'android') return 'http://10.0.2.2:5000/api';
-  return 'http://localhost:5000/api';
+
+  // Fallback to development host Wi-Fi LAN IP
+  return 'http://192.168.1.36:5000/api';
 };
 
 export const API_BASE_URL = getBaseUrl();
+console.log(`[API Base URL configured for ${Platform.OS}]:`, API_BASE_URL);
 const TOKEN_KEY = 'ai_mentor_auth_token';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000, // 30 seconds (LLM calls need more time)
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -72,6 +85,11 @@ let inMemoryToken: string | null = null;
 
 axiosInstance.interceptors.request.use(async (config) => {
   try {
+    if (config.data instanceof FormData) {
+      if (config.headers) {
+        delete (config.headers as any)['Content-Type'];
+      }
+    }
     let token = inMemoryToken;
     if (!token) {
       token = await storage.getItem(TOKEN_KEY);
@@ -132,7 +150,11 @@ class ApiClient {
     headers?: any
   ): Promise<{ success: boolean; data?: T; message?: string }> {
     try {
-      const response = await axiosInstance({ method, url: endpoint, data, headers });
+      const reqHeaders = { ...(headers || {}) };
+      if (data instanceof FormData) {
+        delete reqHeaders['Content-Type'];
+      }
+      const response = await axiosInstance({ method, url: endpoint, data, headers: reqHeaders });
       const body = response.data;
       if (body && typeof body === 'object' && 'success' in body) {
         return {
@@ -144,9 +166,13 @@ class ApiClient {
       return { success: true, data: body as T };
     } catch (err: any) {
       console.warn(`[API] Error on ${endpoint}:`, err.message);
+      let message = err.response?.data?.message || err.message || 'Network request failed';
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        message = `Connection to ${API_BASE_URL} timed out. Please ensure your PC Wi-Fi network is set to 'Private network' in Windows Settings so your phone can connect.`;
+      }
       return {
         success: false,
-        message: err.response?.data?.message || err.message || 'Network request failed',
+        message,
       };
     }
   }
@@ -184,6 +210,51 @@ class ApiClient {
 
   async submitAnswer(sessionId: string, questionId: string, userAnswer: string) {
     return this.request<any>('post', '/interviews/answer', { sessionId, questionId, userAnswer });
+  }
+
+  async submitAudioAnswer(sessionId: string, questionId: string, audioUri: string) {
+    const formData = new FormData();
+    formData.append('sessionId', sessionId);
+    formData.append('questionId', questionId);
+    
+    if (Platform.OS === 'web') {
+      try {
+        const response = await fetch(audioUri);
+        const blob = await response.blob();
+        formData.append('audio', blob, 'answer.webm');
+      } catch (err) {
+        console.warn('Failed to fetch audio blob on web', err);
+      }
+    } else {
+      // For React Native Native (iOS/Android)
+      formData.append('audio', {
+        uri: audioUri,
+        name: 'answer.m4a',
+        type: 'audio/m4a',
+      } as any);
+    }
+
+    return this.request<any>('post', `/interviews/${sessionId}/questions/${questionId}/answer-audio`, formData);
+  }
+
+  async transcribeAudio(audioUri: string) {
+    const formData = new FormData();
+    if (Platform.OS === 'web') {
+      try {
+        const response = await fetch(audioUri);
+        const blob = await response.blob();
+        formData.append('audio', blob, 'answer.webm');
+      } catch (err) {
+        console.warn('Failed to fetch audio blob on web', err);
+      }
+    } else {
+      formData.append('audio', {
+        uri: audioUri,
+        name: 'answer.m4a',
+        type: 'audio/m4a',
+      } as any);
+    }
+    return this.request<{ transcription: string }>('post', '/interviews/transcribe', formData);
   }
 
   async completeInterview(sessionId: string) {
@@ -236,9 +307,7 @@ class ApiClient {
       } as any);
     }
     
-    return this.request<any>('post', '/resume/analyze', formData, {
-      'Content-Type': 'multipart/form-data',
-    });
+    return this.request<any>('post', '/resume/analyze', formData);
   }
 }
 

@@ -94,37 +94,40 @@ const ROLE_KEYWORDS: Record<string, string[]> = {
 };
 
 /**
- * Resolves the user's targetRole to the closest matching keyword map key.
+ * Resolves the user's targetRole exactly as they typed it, to support ANY role globally.
  */
 function resolveRole(targetRole: string | null | undefined): string {
-  if (!targetRole) return 'Software Engineer';
-
-  const roleLower = targetRole.toLowerCase().trim();
-
-  // Direct match check
-  for (const key of Object.keys(ROLE_KEYWORDS)) {
-    if (key.toLowerCase() === roleLower) return key;
-  }
-
-  // Partial / fuzzy match
-  if (roleLower.includes('devops') || roleLower.includes('sre') || roleLower.includes('infrastructure') || roleLower.includes('platform')) return 'DevOps';
-  if (roleLower.includes('frontend') || roleLower.includes('front-end') || roleLower.includes('front end') || roleLower.includes('ui developer')) return 'Frontend Developer';
-  if (roleLower.includes('backend') || roleLower.includes('back-end') || roleLower.includes('back end') || roleLower.includes('server')) return 'Backend Developer';
-  if (roleLower.includes('full stack') || roleLower.includes('fullstack') || roleLower.includes('full-stack')) return 'Full Stack Developer';
-  if (roleLower.includes('data') || roleLower.includes('machine learning') || roleLower.includes('ml ') || roleLower.includes('ai ') || roleLower.includes('scientist')) return 'Data Science';
-  if (roleLower.includes('business') || roleLower.includes('management') || roleLower.includes('product manager') || roleLower.includes('analyst')) return 'Business';
-  if (roleLower.includes('qa') || roleLower.includes('quality') || roleLower.includes('test') || roleLower.includes('sdet')) return 'QA Engineer';
-  if (roleLower.includes('mobile') || roleLower.includes('ios') || roleLower.includes('android') || roleLower.includes('react native') || roleLower.includes('flutter')) return 'Mobile Developer';
-  if (roleLower.includes('software') || roleLower.includes('engineer') || roleLower.includes('developer') || roleLower.includes('programmer')) return 'Software Engineer';
-
-  return 'Software Engineer';
+  if (!targetRole || targetRole.trim() === '') return 'Professional';
+  return targetRole.trim();
 }
 
 /**
- * Returns the keywords for a given resolved role.
+ * Returns the keywords for a given resolved role (used ONLY as a fallback for heuristics).
+ * Gemini AI will dynamically generate its own keywords for any role.
  */
 function getKeywordsForRole(role: string): string[] {
-  return ROLE_KEYWORDS[role] || ROLE_KEYWORDS['Software Engineer'];
+  const roleLower = role.toLowerCase();
+  
+  for (const key of Object.keys(ROLE_KEYWORDS)) {
+    if (roleLower.includes(key.toLowerCase())) return ROLE_KEYWORDS[key];
+  }
+
+  // Fuzzy matches for common tech domains
+  if (roleLower.includes('devops') || roleLower.includes('sre') || roleLower.includes('infrastructure')) return ROLE_KEYWORDS['DevOps'];
+  if (roleLower.includes('frontend') || roleLower.includes('ui developer')) return ROLE_KEYWORDS['Frontend Developer'];
+  if (roleLower.includes('backend') || roleLower.includes('server')) return ROLE_KEYWORDS['Backend Developer'];
+  if (roleLower.includes('data') || roleLower.includes('machine learning') || roleLower.includes('ml ') || roleLower.includes('ai ')) return ROLE_KEYWORDS['Data Science'];
+  if (roleLower.includes('business') || roleLower.includes('manager') || roleLower.includes('analyst')) return ROLE_KEYWORDS['Business'];
+  if (roleLower.includes('qa') || roleLower.includes('quality') || roleLower.includes('test')) return ROLE_KEYWORDS['QA Engineer'];
+  if (roleLower.includes('mobile') || roleLower.includes('ios') || roleLower.includes('android')) return ROLE_KEYWORDS['Mobile Developer'];
+  if (roleLower.includes('software') || roleLower.includes('engineer') || roleLower.includes('developer')) return ROLE_KEYWORDS['Software Engineer'];
+
+  // Generic fallback for non-tech / completely unknown roles (for heuristic analysis only)
+  return [
+    'Leadership', 'Communication', 'Project Management', 'Problem Solving',
+    'Teamwork', 'Agile', 'Strategy', 'Analytics', 'Optimization', 'Delivery',
+    'Operations', 'Planning', 'Coordination', 'Reporting', 'Customer Service'
+  ];
 }
 
 export class ResumeService {
@@ -240,8 +243,6 @@ export class ResumeService {
     fileName: string,
     role: string
   ): Promise<ResumeAnalysisResult | null> {
-    const roleKeywords = getKeywordsForRole(role);
-
     const prompt = `You are an expert ATS (Applicant Tracking System) analyst and senior recruiter specializing in ${role} positions.
 Analyze the following resume text and provide a comprehensive ATS diagnostic specifically for a **${role}** position.
 
@@ -253,12 +254,15 @@ ${resumeText.slice(0, 4000)}
 """
 
 Target Role: **${role}**
-Expected Keywords for this role: ${roleKeywords.join(', ')}
 
-Analyze the resume rigorously across these dimensions, specifically for a ${role} position:
-1. **ATS Score (0-100):** Keyword coverage for ${role} roles. Check for these key skills: ${roleKeywords.slice(0, 12).join(', ')}.
+Instructions:
+1. First, identify the top 15-20 industry-standard keywords, hard skills, and qualifications expected for a ${role}.
+2. Then, analyze the resume against those expected keywords.
+
+Evaluate rigorously across these dimensions:
+1. **ATS Score (0-100):** Keyword coverage specifically for a ${role}. Does the resume contain the critical skills expected?
 2. **Formatting Score (0-100):** Standard section headings, clean structure, ATS-parseable format, no tables/columns/images that break ATS.
-3. **Impact Score (0-100):** Quantified achievements, action verbs, XYZ formula usage ("Accomplished X as measured by Y by doing Z"). Evaluate impact relevance to ${role} specifically.
+3. **Impact Score (0-100):** Quantified achievements, action verbs, XYZ formula usage ("Accomplished X as measured by Y by doing Z"). Evaluate impact relevance to ${role}.
 4. **Overall Score:** Weighted average of the three scores.
 
 Return ONLY a valid JSON object with this exact schema:
@@ -267,14 +271,14 @@ Return ONLY a valid JSON object with this exact schema:
   "atsScore": integer (0-100),
   "formattingScore": integer (0-100),
   "impactScore": integer (0-100),
-  "extractedKeywords": ["keyword1", "keyword2", ...],
-  "missingKeywords": ["keyword1", "keyword2", ...] (max 6, specific to ${role}),
-  "suggestions": ["actionable tip 1", "actionable tip 2", ...] (3-5 tips, specific to ${role}),
+  "extractedKeywords": ["keyword1", "keyword2", ...] (keywords found in resume),
+  "missingKeywords": ["keyword1", "keyword2", ...] (max 6 critical ${role} keywords missing from the resume),
+  "suggestions": ["actionable tip 1", "actionable tip 2", ...] (3-5 tips specific to a ${role} application),
   "strengths": ["strength 1", "strength 2", "strength 3"] (2-4 strengths)
 }`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${ENV.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${ENV.GEMINI_API_KEY}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
       }

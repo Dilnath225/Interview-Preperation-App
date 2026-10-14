@@ -41,3 +41,35 @@ export const uploadResume = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
+
+const audioFilter = (
+  req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  const allowedExtensions = ['.m4a', '.mp3', '.wav', '.webm', '.ogg'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedExtensions.includes(ext) || file.mimetype.startsWith('audio/')) {
+    cb(null, true);
+  } else {
+    cb(new ApiError(400, 'Invalid file type. Only Audio files are supported.'));
+  }
+};
+
+export const uploadAudio = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname) || '.m4a';
+      cb(null, `audio-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB limit for audio
+  },
+});

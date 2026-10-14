@@ -74,7 +74,7 @@ export default function HomeScreen() {
             <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
               <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
             </View>
-            <Text style={styles.actionCardText}>Start Mock{'\n'}Interview</Text>
+            <Text style={styles.actionCardText}>AI Video Call{'\n'}Interview</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
