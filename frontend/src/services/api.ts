@@ -336,6 +336,66 @@ class ApiClient {
     return this.request<{ sessions: any[] }>('get', '/interviews');
   }
 
+  async analyzeSpeech(transcript: string, targetPhrase?: string) {
+    return this.request<{
+      pronunciationAccuracy: number;
+      fluencyScore: number;
+      clarityScore: number;
+      overallSpeechScore: number;
+      fillerWordsCount: number;
+      fillerWords: Array<{ word: string; count: number }>;
+      wordsPerMinute: number;
+      pacingFeedback: string;
+      phoneticCritiques: Array<{ word: string; phoneticGuide: string; tip: string }>;
+      strengths: string[];
+      areasToImprove: string[];
+      coachingVerdict: string;
+      idealPolishedVersion: string;
+    }>('post', '/interviews/speech-analysis', { transcript, targetPhrase });
+  }
+
+  async analyzeSpeechAudio(audioUri: string, targetPhrase?: string, transcript?: string) {
+    const formData = new FormData();
+    if (targetPhrase) formData.append('targetPhrase', targetPhrase);
+    if (transcript) formData.append('transcript', transcript);
+
+    if (Platform.OS === 'web') {
+      try {
+        const response = await fetch(audioUri);
+        const blob = await response.blob();
+        formData.append('audio', blob, 'speech.webm');
+      } catch (err) {
+        console.warn('Failed to fetch audio blob on web', err);
+      }
+    } else {
+      const filename = audioUri.split('/').pop() || 'speech.m4a';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const mimeType = ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'audio/m4a';
+      formData.append('audio', {
+        uri: audioUri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
+
+    return this.request<{
+      pronunciationAccuracy: number;
+      fluencyScore: number;
+      clarityScore: number;
+      overallSpeechScore: number;
+      fillerWordsCount: number;
+      fillerWords: Array<{ word: string; count: number }>;
+      wordsPerMinute: number;
+      pacingFeedback: string;
+      phoneticCritiques: Array<{ word: string; phoneticGuide: string; tip: string }>;
+      strengths: string[];
+      areasToImprove: string[];
+      coachingVerdict: string;
+      idealPolishedVersion: string;
+      transcript?: string;
+    }>('post', '/interviews/speech-analysis', formData);
+  }
+
   // --- Coding Challenges & Technical Assessment ---
   async getCodingChallenges(category?: string, difficulty?: string) {
     const query = new URLSearchParams();
@@ -417,8 +477,16 @@ class ApiClient {
   }
 
   // --- AI Chat Mentor ---
-  async sendChatMessage(message: string, context = 'GENERAL') {
-    return this.request<{ message: any }>('post', '/chat/message', { message, context });
+  async sendChatMessage(
+    message: string,
+    context = 'GENERAL',
+    attachment?: { name: string; type: string; data: string }
+  ) {
+    return this.request<{ message: any }>('post', '/chat/message', {
+      message,
+      context,
+      attachment,
+    });
   }
 
   async getChatHistory() {

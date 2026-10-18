@@ -1,5 +1,6 @@
 /**
  * AI Mentor - Interview Categories Screen
+ * Restored original layout with dedicated Target Top Companies hub card
  */
 import React from 'react';
 import {
@@ -33,14 +34,26 @@ export default function InterviewsScreen() {
           </Text>
         </View>
 
-        {/* HR Interview (Full Width) */}
+        {/* Target Top Companies (Featured Card - opens dedicated page) */}
         <CategoryCard
-          title="HR Interview"
-          description="Master culture fit, compensation talks, and soft-skill storytelling."
-          iconName="people-outline"
+          title="Target Top Companies"
+          description="Prepare with calibrated benchmarks for Sri Lankan tech leaders (WSO2, IFS, Sysco LABS, LSEG) & Global giants (Google, Meta, Amazon). Includes live job openings & tech stacks."
+          iconName="business-outline"
           iconColor="#00F5D4"
           iconBgColor="rgba(0, 245, 212, 0.12)"
-          onPress={() => router.push('/mock-interview')}
+          badge="GLOBAL & LK"
+          onPress={() => router.push('/target-companies')}
+        />
+
+        {/* Leadership Questions (Full Width - 40 MCQs) */}
+        <CategoryCard
+          title="Leadership Questions"
+          description="40-question scenario papers tiered from Internship to Executive level with instant score review."
+          iconName="ribbon-outline"
+          iconColor="#00F5D4"
+          iconBgColor="rgba(0, 245, 212, 0.12)"
+          badge="40 MCQs"
+          onPress={() => router.push('/leadership-mcq')}
         />
 
         {/* 2-Column Split: Technical & Behavioral */}
@@ -66,20 +79,10 @@ export default function InterviewsScreen() {
           />
         </View>
 
-        {/* Leadership Questions */}
-        <CategoryCard
-          title="Leadership Questions"
-          description="Strategy, team conflict, and visionary growth."
-          iconName="ribbon-outline"
-          iconColor="#00F5D4"
-          iconBgColor="rgba(0, 245, 212, 0.12)"
-          onPress={() => router.push('/mock-interview')}
-        />
-
         {/* Final Round (ELITE) */}
         <CategoryCard
           title="Final Round"
-          description="Executive alignment and high-stakes decision making."
+          description="Executive alignment, high-stakes decision making, and culture assessment."
           iconName="shield-checkmark-outline"
           iconColor="#00F5D4"
           iconBgColor="rgba(0, 245, 212, 0.12)"

@@ -2,8 +2,19 @@ import axios from 'axios';
 import { prisma } from '../config/prisma';
 import { ENV } from '../config/env';
 
+export interface ChatAttachment {
+  name: string;
+  type: string;
+  data: string;
+}
+
 export class ChatService {
-  static async sendMessage(userId: string, userMessage: string, context = 'INTERVIEW_COACH') {
+  static async sendMessage(
+    userId: string,
+    userMessage: string,
+    context = 'INTERVIEW_COACH',
+    attachment?: ChatAttachment
+  ) {
     // 1. Fetch recent conversation history to provide multi-turn context memory to the LLM
     const pastMessages = await prisma.chatMessage.findMany({
       where: { userId },
@@ -11,12 +22,16 @@ export class ChatService {
       take: 8,
     });
 
-    // 2. Save user message to database
+    // 2. Save user message to database (record attachment name if attached)
+    const storedMessage = attachment?.name
+      ? `[📎 Attached: ${attachment.name}]\n${userMessage}`
+      : userMessage;
+
     await prisma.chatMessage.create({
       data: {
         userId,
         sender: 'USER',
-        message: userMessage,
+        message: storedMessage,
         context,
       },
     });
@@ -40,23 +55,36 @@ export class ChatService {
 
     let aiReply = '';
 
-    // A. Priority 1: Direct Google Gemini API Call (ultra-fast 2026 models with multi-language & Singlish support)
+    // A. Priority 1: Direct Google Gemini API Call (multimodal image & document understanding)
     if (ENV.GEMINI_API_KEY) {
-      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash'];
-      const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering internships, junior developer roles, and tech interviews in Sri Lanka and globally.
-You fluently understand English, Sinhala, and Singlish (Sinhala written with English letters like "Wdada oya", "Katha karanna puluwanda", "Mata interview ekata help ekak ona").
-- If the candidate communicates in Sinhala or Singlish, reply naturally and warmly in friendly Sinhala or Singlish to make them comfortable, while providing elite software engineering career guidance!
-- If the candidate asks in English, provide a crisp, encouraging, highly structured response using markdown formatting, bullet points, and real-world software engineering best practices (STAR method, system design tradeoffs, algorithmic complexity).
+      const candidateModels = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+      const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering interviews, architecture, coding problem strategies, and resume critique.
+- If the candidate attached a photo, image, whiteboard sketch, or document, examine it thoroughly and provide direct, actionable technical feedback.
+- If reviewing code or architecture, detail strengths, edge-case vulnerabilities, time/space complexity, and improvements.
+- Provide crisp, encouraging, highly structured responses using clean markdown formatting, bold points, and code snippets where appropriate.
 ${userProfile?.targetRole ? `- Candidate Target Role: ${userProfile.targetRole}` : ''}
 ${userProfile?.skills ? `- Candidate Skills: ${userProfile.skills}` : ''}
 
 Conversation History:
 ${historyText}
 
-Candidate's Latest Question:
+Candidate's Latest Message:
 ${userMessage}
+${attachment ? `(Candidate attached file: "${attachment.name}" [${attachment.type}])` : ''}
 
 AI Mentor Response:`;
+
+      const parts: any[] = [{ text: systemPrompt }];
+
+      if (attachment && attachment.data && attachment.type) {
+        const sanitizedMime = attachment.type.split(';')[0].trim() || 'image/jpeg';
+        parts.push({
+          inlineData: {
+            mimeType: sanitizedMime,
+            data: attachment.data,
+          },
+        });
+      }
 
       for (const model of candidateModels) {
         try {
@@ -65,11 +93,11 @@ AI Mentor Response:`;
             {
               contents: [
                 {
-                  parts: [{ text: systemPrompt }],
+                  parts,
                 },
               ],
             },
-            { timeout: 10000 }
+            { timeout: 25000 }
           );
 
           const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;

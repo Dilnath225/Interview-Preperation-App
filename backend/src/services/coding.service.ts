@@ -498,7 +498,7 @@ export class CodingService {
       assessmentId: assessment.id,
       questions: formattedQuestions,
       totalQuestions: formattedQuestions.length,
-      timeLimitMinutes: 60,
+      timeLimitMinutes: 90,
       role: targetRole,
       level: targetLevel,
       language: normalizedLang,

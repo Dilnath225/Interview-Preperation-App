@@ -13,6 +13,11 @@ router.post('/gaze-detection', asyncHandler(InterviewController.detectGaze));
 router.use(authenticate);
 
 router.post('/start', asyncHandler(InterviewController.start));
+router.post(
+  '/speech-analysis',
+  uploadAudio.single('audio'),
+  asyncHandler(InterviewController.analyzeSpeech)
+);
 router.post('/answer', asyncHandler(InterviewController.submitAnswer));
 router.post(
   '/:sessionId/questions/:questionId/answer-audio',

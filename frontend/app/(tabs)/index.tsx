@@ -47,8 +47,57 @@ export default function HomeScreen() {
     }
   };
 
-  const readinessScore = stats?.readinessScore || user?.readinessScore || 65;
+  const readinessScore =
+    stats?.readinessScore !== undefined && stats?.readinessScore !== null
+      ? stats.readinessScore
+      : user?.readinessScore !== undefined && user?.readinessScore !== null
+      ? user.readinessScore
+      : 0; // Starts at ZERO if no activities!
+
   const userName = user?.name || 'User';
+
+  const getReadinessInfo = (score: number) => {
+    if (score === 0) {
+      return {
+        badge: 'NOT STARTED',
+        badgeColor: '#94A3B8',
+        badgeBg: 'rgba(148, 163, 184, 0.15)',
+        description: 'Complete your first mock interview, coding challenge, or leadership MCQ to calculate your score.',
+      };
+    }
+    if (score >= 90) {
+      return {
+        badge: 'TOP 5% ENTERPRISE',
+        badgeColor: Colors.primary,
+        badgeBg: 'rgba(0, 245, 212, 0.15)',
+        description: stats?.readinessVerdict || 'Exceptional readiness! You are fully prepared for senior & tier-1 roles.',
+      };
+    }
+    if (score >= 75) {
+      return {
+        badge: 'JOB READY',
+        badgeColor: '#00E676',
+        badgeBg: 'rgba(0, 230, 118, 0.15)',
+        description: stats?.readinessVerdict || 'Strong performance across technical and behavioral interview benchmarks.',
+      };
+    }
+    if (score >= 50) {
+      return {
+        badge: 'STEADY PROGRESS',
+        badgeColor: '#FFB300',
+        badgeBg: 'rgba(255, 179, 0, 0.15)',
+        description: stats?.readinessVerdict || 'Making solid progress. Drill more coding problems and behavioral scenarios.',
+      };
+    }
+    return {
+      badge: 'NEEDS PRACTICE',
+      badgeColor: '#FF5252',
+      badgeBg: 'rgba(255, 82, 82, 0.15)',
+      description: stats?.readinessVerdict || 'Keep practicing questions and technical tasks to raise your readiness.',
+    };
+  };
+
+  const readiness = getReadinessInfo(readinessScore);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -64,17 +113,39 @@ export default function HomeScreen() {
           <Text style={styles.userName}>Hello, {userName}!</Text>
         </View>
 
-        {/* Quick Action Cards (2 Columns) */}
-        <View style={styles.quickActionsRow}>
+        {/* Quick Action Cards (4 items in 2x2 grid) */}
+        <View style={styles.quickActionsGrid}>
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/mock-interview')}
             activeOpacity={0.8}
           >
             <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
-              <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
+              <Ionicons name="videocam-outline" size={22} color={Colors.primary} />
             </View>
-            <Text style={styles.actionCardText}>AI Video Call{'\n'}Interview</Text>
+            <Text style={styles.actionCardText}>AI Mock{'\n'}Interview</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push('/leadership-mcq')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(255, 179, 0, 0.12)' }]}>
+              <Ionicons name="ribbon-outline" size={22} color="#FFB300" />
+            </View>
+            <Text style={styles.actionCardText}>Leadership{'\n'}40 MCQs</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push('/coding-challenge')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
+              <Ionicons name="code-slash-outline" size={22} color="#00E676" />
+            </View>
+            <Text style={styles.actionCardText}>Coding{'\n'}Assessment</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -82,10 +153,10 @@ export default function HomeScreen() {
             onPress={() => router.push('/resume-review')}
             activeOpacity={0.8}
           >
-            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
-              <Ionicons name="document-text-outline" size={24} color="#00E676" />
+            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(124, 77, 255, 0.12)' }]}>
+              <Ionicons name="document-text-outline" size={22} color="#7C4DFF" />
             </View>
-            <Text style={styles.actionCardText}>Resume{'\n'}Review</Text>
+            <Text style={styles.actionCardText}>ATS Resume{'\n'}Review</Text>
           </TouchableOpacity>
         </View>
 
@@ -94,22 +165,20 @@ export default function HomeScreen() {
           <View style={styles.progressLeft}>
             <Text style={styles.progressTitle}>Interview Readiness</Text>
             <Text style={styles.progressDescription}>
-              {stats
-                ? `${stats.completedInterviews || 0} interviews done, ${stats.solvedChallenges || 0} challenges solved.`
-                : 'Loading your progress...'}
+              {readiness.description}
             </Text>
 
             <View style={styles.badgesRow}>
-              {readinessScore >= 80 && (
-                <View style={styles.pillBadgeMuted}>
-                  <Text style={styles.pillBadgeMutedText}>TOP 5%</Text>
-                </View>
-              )}
-              <View style={styles.pillBadgeSuccess}>
-                <Text style={styles.pillBadgeSuccessText}>
-                  {readinessScore >= 80 ? 'READY' : 'IMPROVING'}
+              <View style={[styles.pillBadgeSuccess, { backgroundColor: readiness.badgeBg }]}>
+                <Text style={[styles.pillBadgeSuccessText, { color: readiness.badgeColor }]}>
+                  {readiness.badge}
                 </Text>
               </View>
+              {stats?.completedInterviews > 0 && (
+                <View style={styles.pillBadgeMuted}>
+                  <Text style={styles.pillBadgeMutedText}>{stats.completedInterviews} INTERVIEWS</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -223,10 +292,10 @@ const styles = StyleSheet.create({
   welcomeSection: { marginTop: Spacing.lg, marginBottom: Spacing.xl },
   welcomeSub: { fontSize: Typography.body, color: Colors.textSecondary },
   userName: { fontSize: 28, fontWeight: Typography.bold, color: Colors.textPrimary, marginTop: 2 },
-  quickActionsRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.lg },
-  actionCard: { flex: 1, backgroundColor: '#101824', borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#1C293A', minHeight: 120, justifyContent: 'space-between' },
-  actionIconBox: { width: 44, height: 44, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  actionCardText: { fontSize: Typography.body, fontWeight: Typography.bold, color: Colors.textPrimary, lineHeight: 20 },
+  quickActionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginBottom: Spacing.lg },
+  actionCard: { width: '47.5%', backgroundColor: '#101824', borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#1C293A', minHeight: 110, justifyContent: 'space-between' },
+  actionIconBox: { width: 40, height: 40, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
+  actionCardText: { fontSize: 13, fontWeight: Typography.bold, color: Colors.textPrimary, lineHeight: 18 },
   progressCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#101824', borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#1C293A', marginBottom: Spacing.xl },
   progressLeft: { flex: 1, paddingRight: Spacing.md },
   progressTitle: { fontSize: Typography.h5, fontWeight: Typography.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },

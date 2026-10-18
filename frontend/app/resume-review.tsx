@@ -26,6 +26,7 @@ import { Header } from '../src/components/Header';
 import { ProgressRing } from '../src/components/ProgressRing';
 import { Button } from '../src/components/Button';
 import { api } from '../src/services/api';
+import { useNotifications } from '../src/context';
 
 const POPULAR_ROLES = [
   'Software Engineer Intern',
@@ -52,6 +53,7 @@ const INDUSTRIES = [
 
 export default function ResumeReviewScreen() {
   const router = useRouter();
+  const { addNotification } = useNotifications();
 
   // Configuration state
   const [targetRole, setTargetRole] = useState('Software Engineer Intern');
@@ -153,6 +155,12 @@ export default function ResumeReviewScreen() {
       if (response.success && response.data) {
         setResult(response.data);
         setExpandedSection('score_breakdown');
+        addNotification(
+          'ATS Resume Evaluated',
+          `Your resume scored ${response.data.overallScore || response.data.atsScore || 0}% ATS match. Review recommendations!`,
+          'resume',
+          '/resume-review'
+        );
         // Refresh history in background
         loadHistory();
       } else {

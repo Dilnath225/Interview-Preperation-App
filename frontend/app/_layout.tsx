@@ -1,12 +1,10 @@
-/**
- * AI Mentor - Root Layout with Auth Provider
- */
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/constants/theme';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import { NotificationProvider } from '../src/context';
 
 function InitialLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -16,7 +14,12 @@ function InitialLayout() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(tabs)' || segments[0] === 'mock-interview' || segments[0] === 'coding-challenge';
+    const inAuthGroup =
+      segments[0] === '(tabs)' ||
+      segments[0] === 'mock-interview' ||
+      segments[0] === 'coding-challenge' ||
+      segments[0] === 'leadership-mcq' ||
+      segments[0] === 'target-companies';
     const isAuthScreen = segments[0] === 'sign-in' || segments[0] === 'sign-up' || segments[0] === 'onboarding';
 
     if (!isAuthenticated && inAuthGroup) {
@@ -43,6 +46,8 @@ function InitialLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="mock-interview" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="coding-challenge" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="leadership-mcq" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="target-companies" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="resume-review" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
     </Stack>
@@ -52,11 +57,14 @@ function InitialLayout() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-        <InitialLayout />
-      </SafeAreaProvider>
+      <NotificationProvider>
+        <SafeAreaProvider>
+          <StatusBar style="light" />
+          <InitialLayout />
+        </SafeAreaProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }
+
 

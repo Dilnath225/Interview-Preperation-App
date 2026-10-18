@@ -17,7 +17,7 @@ import {
   Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // Safely load ImagePicker only when invoked to prevent Expo Go boot crashes if ExpoAsset native module is missing
@@ -68,6 +68,7 @@ const PRESET_AVATARS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, logout, updateUser, refreshUser } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -381,7 +382,12 @@ export default function ProfileScreen() {
     return { uri: `${base}${raw}` };
   };
 
-  const readinessScore = stats?.readinessScore || user?.readinessScore || 65;
+  const readinessScore =
+    stats?.readinessScore !== undefined && stats?.readinessScore !== null
+      ? stats.readinessScore
+      : user?.readinessScore !== undefined && user?.readinessScore !== null
+      ? user.readinessScore
+      : 0;
   const skillsArray = user?.skills
     ? user.skills.split(',').map((s) => s.trim()).filter(Boolean)
     : ['React', 'TypeScript', 'Node.js', 'PostgreSQL'];
@@ -473,7 +479,16 @@ export default function ProfileScreen() {
               <Text style={styles.scoreNumberTotal}> / 100</Text>
             </View>
             <Text style={styles.readinessStatus}>
-              {readinessScore >= 80 ? 'Ready for FAANG' : readinessScore >= 65 ? 'Competitive Candidate' : 'Foundation Level'}
+              {readinessScore === 0
+                ? 'Not Started (Take Drills)'
+                : stats?.readinessVerdict ||
+                  (readinessScore >= 90
+                    ? 'Enterprise Ready (Top 5%)'
+                    : readinessScore >= 75
+                    ? 'Job Ready'
+                    : readinessScore >= 50
+                    ? 'Making Steady Progress'
+                    : 'Needs Practice')}
             </Text>
           </View>
 
@@ -633,16 +648,16 @@ export default function ProfileScreen() {
         transparent={false}
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.modalCloseBtn}>
-              <Ionicons name="close" size={24} color={Colors.textPrimary} />
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+          {/* Modal Header - Pushed down for iPhone Notch / Dynamic Island */}
+          <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'ios' ? Math.max(insets.top, 52) + 12 : 32 }]}>
+            <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.modalCloseBtn} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Edit Candidate Profile</Text>
-            <TouchableOpacity onPress={handleSaveProfile} disabled={savingProfile} style={styles.modalSaveBtn}>
+            <Text style={styles.modalTitle} numberOfLines={1}>Edit Candidate Profile</Text>
+            <TouchableOpacity onPress={handleSaveProfile} disabled={savingProfile} style={styles.modalSaveBtn} activeOpacity={0.8}>
               {savingProfile ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color="#070C12" />
               ) : (
                 <Text style={styles.modalSaveText}>Save</Text>
               )}
@@ -982,10 +997,44 @@ const styles = StyleSheet.create({
 
   // Edit Modal Styles
   modalContainer: { flex: 1, backgroundColor: '#070C12' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: '#1A2738' },
-  modalCloseBtn: { padding: Spacing.xs },
-  modalTitle: { fontSize: Typography.h4, fontWeight: Typography.bold, color: Colors.textPrimary },
-  modalSaveBtn: { paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: Colors.primary, borderRadius: BorderRadius.full },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 64 : 32,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A2738',
+    backgroundColor: '#0A1017',
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#121E2C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1D2F44',
+  },
+  modalTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: Typography.bold,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginHorizontal: Spacing.xs,
+  },
+  modalSaveBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalSaveText: { fontSize: Typography.bodySmall, fontWeight: Typography.bold, color: '#070C12' },
   modalScroll: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.lg },
   inputGroupLabel: { fontSize: 10, fontWeight: Typography.bold, color: Colors.textMuted, letterSpacing: 1, marginBottom: 6, marginTop: Spacing.sm },

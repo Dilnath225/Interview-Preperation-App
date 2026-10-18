@@ -1,11 +1,10 @@
 import { Platform } from 'react-native';
 
-// Conditionally import expo-speech (Text-to-Speech)
-let Speech: any = null;
+let SpeechModule: any = null;
 try {
-  Speech = require('expo-speech');
+  SpeechModule = require('expo-speech');
 } catch (e) {
-  // Graceful fallback to web SpeechSynthesis
+  SpeechModule = null;
 }
 
 // Type definitions for Web Speech API
@@ -275,10 +274,11 @@ class SpeechManager {
     }
 
     // Native fallback via expo-speech (if native module is linked)
-    if (Speech && Speech.speak) {
+    const speechEngine = SpeechModule?.speak ? SpeechModule : SpeechModule?.default?.speak ? SpeechModule.default : null;
+    if (speechEngine && speechEngine.speak) {
       try {
-        Speech.stop();
-        Speech.speak(text, {
+        speechEngine.stop();
+        speechEngine.speak(text, {
           language: 'en-US',
           pitch: 1.0,
           rate: 0.95,
@@ -305,9 +305,10 @@ class SpeechManager {
       } catch (e) {}
     }
 
-    if (Speech && Speech.stop) {
+    const speechEngine = SpeechModule?.stop ? SpeechModule : SpeechModule?.default?.stop ? SpeechModule.default : null;
+    if (speechEngine && speechEngine.stop) {
       try {
-        Speech.stop();
+        speechEngine.stop();
       } catch (e) {}
     }
   }

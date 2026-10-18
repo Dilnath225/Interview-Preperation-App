@@ -75,6 +75,7 @@ interface VideoCallViewProps {
   setGazeWarning?: (msg: string) => void;
   setAwaySeconds?: (s: number) => void;
   onDisqualified?: (reason: string) => void;
+  sessionTimeRemaining?: number;
 }
 
 export const VideoCallView: React.FC<VideoCallViewProps> = ({
@@ -101,6 +102,7 @@ export const VideoCallView: React.FC<VideoCallViewProps> = ({
   setGazeWarning,
   setAwaySeconds,
   onDisqualified,
+  sessionTimeRemaining,
 }) => {
   // Screen Layout: 'ai' = AI Interviewer full screen, 'candidate' = Candidate camera full screen
   const [fullScreenTarget, setFullScreenTarget] = useState<'ai' | 'candidate'>('ai');
@@ -698,10 +700,29 @@ export const VideoCallView: React.FC<VideoCallViewProps> = ({
           <Text style={styles.swapViewText}>{isCandidateFull ? 'AI Full' : 'Self Full'}</Text>
         </TouchableOpacity>
 
-        {/* Question Timer */}
-        <View style={styles.timerBadge}>
-          <Ionicons name="time-outline" size={13} color={Colors.primary} />
-          <Text style={styles.timerText}>{formatTime(timer)}</Text>
+        {/* 30-Minute Interview Countdown Timer */}
+        <View
+          style={[
+            styles.timerBadge,
+            sessionTimeRemaining !== undefined && sessionTimeRemaining < 300 && {
+              borderColor: 'rgba(255, 59, 48, 0.45)',
+              backgroundColor: 'rgba(255, 59, 48, 0.15)',
+            },
+          ]}
+        >
+          <Ionicons
+            name="time-outline"
+            size={13}
+            color={sessionTimeRemaining !== undefined && sessionTimeRemaining < 300 ? '#FF3B30' : Colors.primary}
+          />
+          <Text
+            style={[
+              styles.timerText,
+              sessionTimeRemaining !== undefined && sessionTimeRemaining < 300 && { color: '#FF3B30' },
+            ]}
+          >
+            {sessionTimeRemaining !== undefined ? formatTime(sessionTimeRemaining) : formatTime(timer)}
+          </Text>
         </View>
 
         {/* Standard Mode Return */}

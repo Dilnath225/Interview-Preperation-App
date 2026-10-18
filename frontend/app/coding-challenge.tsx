@@ -26,6 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
 import { api } from '../src/services/api';
+import { useNotifications } from '../src/context';
 
 type ScreenView = 'launcher' | 'assessment' | 'review';
 
@@ -85,6 +86,7 @@ interface TestResult {
 
 export default function CodingChallengeScreen() {
   const router = useRouter();
+  const { addNotification } = useNotifications();
 
   // Screen View State
   const [currentView, setCurrentView] = useState<ScreenView>('launcher');
@@ -112,7 +114,7 @@ export default function CodingChallengeScreen() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userCodes, setUserCodes] = useState<Record<string, string>>({});
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, 'unanswered' | 'attempted' | 'passed' | 'failed'>>({});
-  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(60 * 60); // 60 minutes
+  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(90 * 60); // 90 minutes default
   const timerRef = useRef<any>(null);
 
   // Testing & Execution State
@@ -202,7 +204,7 @@ export default function CodingChallengeScreen() {
         setUserCodes(initialCodes);
         setQuestionStatuses(initialStatuses);
         setQuestionLanguages(initialLangs);
-        setTimeRemainingSeconds(timeLimitMinutes * 60);
+        setTimeRemainingSeconds((timeLimitMinutes || 90) * 60);
 
         setTestResults([]);
         setConsoleLogs([]);
@@ -356,8 +358,13 @@ export default function CodingChallengeScreen() {
   };
 
   const handleAutoSubmit = () => {
-    Alert.alert('Time Expired', 'Assessment time has elapsed. Submitting answers automatically.');
-    performFinalSubmit();
+    if (assessmentId) {
+      Alert.alert('Time Expired (90 Minutes)', 'Technical assessment time has elapsed. Submitting answers automatically.');
+      performFinalSubmit();
+    } else {
+      Alert.alert('Time Expired (10 Minutes)', '10-minute time limit for this coding challenge has elapsed. Evaluating all test cases automatically.');
+      handleRunAllTests();
+    }
   };
 
   const performFinalSubmit = async () => {
@@ -373,6 +380,12 @@ export default function CodingChallengeScreen() {
       const res = await api.submitTechnicalAssessment(assessmentId, answers);
       if (res.success && res.data) {
         setAssessmentReview(res.data);
+        addNotification(
+          'Coding Assessment Evaluated',
+          `Your technical assessment is evaluated! Overall Score: ${res.data.overallScore || 0}% (${res.data.grade || 'Completed'}).`,
+          'coding',
+          '/coding-challenge'
+        );
         setCurrentView('review');
       } else {
         Alert.alert('Submission Error', res.message || 'Failed to evaluate assessment.');
@@ -385,8 +398,12 @@ export default function CodingChallengeScreen() {
   };
 
   const formatTimer = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -694,6 +711,7 @@ export default function CodingChallengeScreen() {
                       setQuestionStatuses({ [qData.id]: 'unanswered' });
                       setQuestionLanguages({ [qData.id]: selectedLanguage });
                       setAssessmentId(null);
+                      setTimeRemainingSeconds(10 * 60); // 10 minutes limit for individual challenge
                       setCurrentView('assessment');
                     }
                   } finally {
@@ -1244,7 +1262,7 @@ export default function CodingChallengeScreen() {
         <View style={styles.adviceCard}>
           <View style={styles.adviceHeader}>
             <Ionicons name="construct-outline" size={20} color={Colors.primary} />
-            <Text style={styles.adviceTitle}>What to Improve (හැදගන්න ඕන දේවල්)</Text>
+            <Text style={styles.adviceTitle}>What to Improve (Key Recommendations)</Text>
           </View>
           {feedback.actionableAdvice?.map((advice: string, idx: number) => (
             <View key={idx} style={styles.adviceItem}>
@@ -1309,7 +1327,7 @@ export default function CodingChallengeScreen() {
               {/* Mistakes Identified ("Waradunu Ewa") */}
               {q.mistakes?.length > 0 && (
                 <View style={styles.mistakeBox}>
-                  <Text style={styles.mistakeTitle}>⚠️ Mistakes & Edge Cases Missed (වරදුණු දේවල්):</Text>
+                  <Text style={styles.mistakeTitle}>⚠️ Mistakes & Edge Cases Missed:</Text>
                   {q.mistakes.map((m: string, i: number) => (
                     <Text key={i} style={styles.mistakeText}>• {m}</Text>
                   ))}

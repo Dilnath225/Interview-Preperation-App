@@ -46,17 +46,111 @@ export class UserService {
       throw ApiError.notFound('User not found.');
     }
 
-    const [interviewsCount, completedInterviews, codingSubmissions, resumesCount] =
-      await Promise.all([
-        prisma.interviewSession.count({ where: { userId } }),
-        prisma.interviewSession.count({
-          where: { userId, status: 'COMPLETED' },
-        }),
-        prisma.codingSubmission.count({
-          where: { userId, status: 'ACCEPTED' },
-        }),
-        prisma.resumeDiagnostic.count({ where: { userId } }),
-      ]);
+    const [
+      interviewsCount,
+      completedInterviewsList,
+      acceptedSubmissions,
+      completedAssessments,
+      resumesList,
+    ] = await Promise.all([
+      prisma.interviewSession.count({ where: { userId } }),
+      prisma.interviewSession.findMany({
+        where: { userId, status: 'COMPLETED' },
+        select: { overallScore: true },
+      }),
+      prisma.codingSubmission.findMany({
+        where: { userId, status: 'ACCEPTED' },
+        select: { score: true },
+      }),
+      prisma.technicalAssessment.findMany({
+        where: { userId, status: 'COMPLETED' },
+        select: { totalScore: true },
+      }),
+      prisma.resumeDiagnostic.findMany({
+        where: { userId },
+        select: { overallScore: true, atsScore: true },
+      }),
+    ]);
+
+    const completedInterviewsCount = completedInterviewsList.length;
+    const solvedChallengesCount = acceptedSubmissions.length;
+    const completedAssessmentsCount = completedAssessments.length;
+    const resumesCount = resumesList.length;
+
+    // Total activity count
+    const totalActivities =
+      completedInterviewsCount + solvedChallengesCount + completedAssessmentsCount + resumesCount;
+
+    let computedReadiness = 0;
+    let readinessLevel = 'NOT_STARTED';
+    let readinessVerdict = 'Take your first interview, coding challenge, or leadership drill to calculate your readiness.';
+
+    if (totalActivities > 0) {
+      let weightedSum = 0;
+      let totalWeight = 0;
+
+      // 1. Mock Interviews (Weight 40%)
+      if (completedInterviewsCount > 0) {
+        const interviewAvg =
+          completedInterviewsList.reduce((acc, curr) => acc + (curr.overallScore || 0), 0) /
+          completedInterviewsCount;
+        weightedSum += interviewAvg * 0.4;
+        totalWeight += 0.4;
+      }
+
+      // 2. Technical & Coding (Weight 40%)
+      if (solvedChallengesCount > 0 || completedAssessmentsCount > 0) {
+        let codingAvg = 0;
+        if (completedAssessmentsCount > 0) {
+          codingAvg =
+            completedAssessments.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) /
+            completedAssessmentsCount;
+        } else {
+          // Solved individual challenges scale
+          codingAvg = Math.min(100, solvedChallengesCount * 25);
+        }
+        weightedSum += codingAvg * 0.4;
+        totalWeight += 0.4;
+      }
+
+      // 3. Resume ATS Diagnostic (Weight 20%)
+      if (resumesCount > 0) {
+        const resumeAvg =
+          resumesList.reduce((acc, curr) => acc + (curr.overallScore || curr.atsScore || 0), 0) /
+          resumesCount;
+        weightedSum += resumeAvg * 0.2;
+        totalWeight += 0.2;
+      }
+
+      const rawAverage = totalWeight > 0 ? weightedSum / totalWeight : 0;
+      // Activity breadth factor (encourage practicing across multiple areas)
+      const breadthMultiplier = Math.min(1.0, 0.65 + totalActivities * 0.07);
+      computedReadiness = Math.round(Math.min(100, Math.max(0, rawAverage * breadthMultiplier)));
+
+      if (computedReadiness >= 90) {
+        readinessLevel = 'ENTERPRISE_READY';
+        readinessVerdict = 'Enterprise Ready (Top 5%) - Exceptional readiness for senior and tier-1 companies.';
+      } else if (computedReadiness >= 75) {
+        readinessLevel = 'JOB_READY';
+        readinessVerdict = 'Job Ready - Strong performance across technical problem-solving and interviews.';
+      } else if (computedReadiness >= 50) {
+        readinessLevel = 'IMPROVING';
+        readinessVerdict = 'Making Steady Progress - Good fundamentals. Keep drilling behavioral and code challenges.';
+      } else {
+        readinessLevel = 'NEEDS_PRACTICE';
+        readinessVerdict = 'Needs Practice - Complete more mock sessions and coding challenges to boost readiness.';
+      }
+    }
+
+    // Persist computed readiness in background if changed
+    if (user.readinessScore !== computedReadiness) {
+      prisma.user
+        .update({
+          where: { id: userId },
+          data: { readinessScore: computedReadiness },
+        })
+        .catch((e) => console.warn('Failed to update readiness score cache:', e.message));
+    }
 
     const recentInterviews = await prisma.interviewSession.findMany({
       where: { userId },
@@ -74,13 +168,18 @@ export class UserService {
     });
 
     return {
-      user,
+      user: {
+        ...user,
+        readinessScore: computedReadiness,
+      },
       stats: {
         totalInterviews: interviewsCount,
-        completedInterviews,
-        solvedChallenges: codingSubmissions,
+        completedInterviews: completedInterviewsCount,
+        solvedChallenges: solvedChallengesCount,
         uploadedResumes: resumesCount,
-        readinessScore: user.readinessScore || 65,
+        readinessScore: computedReadiness,
+        readinessLevel,
+        readinessVerdict,
       },
       recentInterviews,
     };

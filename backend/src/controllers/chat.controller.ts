@@ -7,13 +7,14 @@ import { ApiError } from '../utils/apiError';
 export class ChatController {
   static sendMessage = async (req: AuthRequest, res: Response) => {
     if (!req.user) throw ApiError.unauthorized();
-    const { message, context } = req.body;
+    const { message, context, attachment } = req.body;
 
-    if (!message || typeof message !== 'string') {
-      throw ApiError.badRequest('Message is required.');
+    if ((!message || typeof message !== 'string') && !attachment) {
+      throw ApiError.badRequest('Message or attachment is required.');
     }
 
-    const aiMessage = await ChatService.sendMessage(req.user.id, message, context);
+    const effectiveMessage = (message && message.trim()) || (attachment?.name ? `Please examine this attached ${attachment.name}` : 'Hello');
+    const aiMessage = await ChatService.sendMessage(req.user.id, effectiveMessage, context, attachment);
     return sendResponse(res, 200, { message: aiMessage }, 'AI response generated');
   };
 

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { InterviewService } from '../services/interview.service';
+import { AIService } from '../services/ai.service';
 import { sendResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
 
@@ -154,5 +155,35 @@ export class InterviewController {
         warning_message: '',
       }, 'Gaze evaluated (fallback)');
     }
+  };
+
+  static analyzeSpeech = async (req: AuthRequest, res: Response) => {
+    let transcript = req.body?.transcript;
+    const targetPhrase = req.body?.targetPhrase;
+    const file = req.file;
+
+    // If audio file was uploaded, transcribe it using Gemini
+    if (file) {
+      try {
+        const fs = require('fs');
+        const audioBase64 = fs.readFileSync(file.path, { encoding: 'base64' });
+        const transcribedText = await AIService.transcribeAudio(
+          audioBase64,
+          file.mimetype || 'audio/m4a'
+        );
+        if (transcribedText && transcribedText.trim()) {
+          transcript = transcribedText.trim();
+        }
+      } catch (err: any) {
+        console.warn('[InterviewController] Audio transcription during speech analysis:', err?.message);
+      }
+    }
+
+    if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
+      throw ApiError.badRequest('Transcript text or an audible audio recording is required for speech analysis.');
+    }
+
+    const result = await AIService.analyzeSpeechAndPronunciation(transcript.trim(), targetPhrase);
+    return sendResponse(res, 200, { ...result, transcript: transcript.trim() }, 'Speech and pronunciation evaluated successfully');
   };
 }

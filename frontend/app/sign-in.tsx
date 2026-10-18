@@ -231,18 +231,6 @@ export default function SignInScreen() {
                 isPassword
               />
 
-              {/* Quick Demo Fill */}
-              <TouchableOpacity
-                style={styles.demoFillBtn}
-                onPress={() => {
-                  setEmail('demo@aimentor.com');
-                  setPassword('password123');
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="flash-outline" size={14} color={Colors.primary} />
-                <Text style={styles.demoFillText}>Fill Demo Credentials (demo@aimentor.com)</Text>
-              </TouchableOpacity>
 
               {/* Sign In Button */}
               <Button
@@ -280,8 +268,6 @@ const styles = StyleSheet.create({
   title: { fontSize: Typography.h2, fontWeight: Typography.bold, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.xs },
   subtitle: { fontSize: Typography.bodySmall, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.xxl, lineHeight: 20 },
   form: { width: '100%' },
-  demoFillBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(0, 245, 212, 0.08)', borderWidth: 1, borderColor: 'rgba(0, 245, 212, 0.25)', borderRadius: BorderRadius.md, paddingVertical: 10, paddingHorizontal: 12, marginTop: 4, marginBottom: Spacing.md },
-  demoFillText: { fontSize: Typography.caption, fontWeight: Typography.semiBold, color: Colors.primary },
   signInButton: { marginTop: Spacing.xs, marginBottom: Spacing.xl },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing.xxl },
   footerText: { fontSize: Typography.bodySmall, color: Colors.textSecondary },

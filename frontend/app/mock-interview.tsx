@@ -23,6 +23,7 @@ import { api } from '../src/services/api';
 import { VideoCallView } from '../src/components/VideoCallView';
 import { AudioWaveform } from '../src/components/AudioWaveform';
 import { speechManager } from '../src/utils/speechRecognition';
+import { useNotifications } from '../src/context';
 
 // Conditionally import expo-av (with graceful fallback for Expo Go on iOS/Android)
 let Audio: any = null;
@@ -34,6 +35,7 @@ try {
 
 export default function MockInterviewScreen() {
   const router = useRouter();
+  const { addNotification } = useNotifications();
   const [session, setSession] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -51,6 +53,9 @@ export default function MockInterviewScreen() {
   const [disqualified, setDisqualified] = useState<string | null>(null);
   const [gazeWarning, setGazeWarning] = useState<string>('');
   const [awaySeconds, setAwaySeconds] = useState<number>(0);
+
+  // 30-Minute AI Interview Session Timer (30 * 60 = 1800 seconds)
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState(30 * 60);
 
   // Enterprise Final Diagnostic Report State
   const [completedSession, setCompletedSession] = useState<any>(null);
@@ -98,6 +103,29 @@ export default function MockInterviewScreen() {
     };
   }, []);
 
+  // 30-Minute Session Countdown with Auto-Timeout
+  useEffect(() => {
+    let sessionInterval: ReturnType<typeof setInterval>;
+    if (!loading && session && viewMode !== 'report') {
+      sessionInterval = setInterval(() => {
+        setSessionTimeRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(sessionInterval);
+            Alert.alert(
+              'Interview Time Expired (30 Minutes)',
+              'Your 30-minute AI interview session has concluded. Compiling your final diagnostic performance report...',
+              [{ text: 'View Report', onPress: handleCompleteInterview }]
+            );
+            handleCompleteInterview();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(sessionInterval);
+  }, [loading, session, viewMode]);
+
   // Timer while answering
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -126,6 +154,7 @@ export default function MockInterviewScreen() {
         setUserAnswersMap({});
         setFeedbacksMap({});
         setCompletedSession(null);
+        setSessionTimeRemaining(30 * 60);
         setViewMode('video');
       } else {
         Alert.alert('Error', 'Could not start interview session.');
@@ -521,6 +550,12 @@ export default function MockInterviewScreen() {
       const res = await api.completeInterview(session.id, answersPayload);
       if (res.success && res.data) {
         setCompletedSession(res.data);
+        addNotification(
+          'Mock Interview Completed',
+          `Your AI interview evaluation is ready with an overall score of ${res.data.overallScore || 0}%.`,
+          'interview',
+          '/(tabs)'
+        );
       }
       setViewMode('report');
     } catch (err) {
@@ -626,11 +661,11 @@ export default function MockInterviewScreen() {
             </View>
             <View style={styles.loadingStepRow}>
               <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
-              <Text style={styles.loadingStepText}>Diagnosing mistakes & missing dimensions (Waradi/Adupadu)</Text>
+              <Text style={styles.loadingStepText}>Diagnosing mistakes & missing technical dimensions</Text>
             </View>
             <View style={styles.loadingStepRow}>
               <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
-              <Text style={styles.loadingStepText}>Formulating gold-standard ideal answers (හරි පිළිතුරු)</Text>
+              <Text style={styles.loadingStepText}>Formulating gold-standard ideal answers</Text>
             </View>
           </View>
         </View>
@@ -950,13 +985,13 @@ export default function MockInterviewScreen() {
                   </View>
                 ) : null}
 
-                {/* Gold-Standard Model Answer (හරි පිළිතුර) */}
+                {/* Gold-Standard Model Answer */}
                 {ev?.sampleIdealAnswer ? (
                   <View style={styles.reportIdealAnswerBox}>
                     <View style={styles.reportIdealHeaderRow}>
                       <View style={styles.reportIdealTitleWrap}>
                         <Ionicons name="bulb" size={16} color="#00F5D4" />
-                        <Text style={styles.reportIdealTitle}>💡 GOLD-STANDARD MODEL ANSWER (හරි පිළිතුර):</Text>
+                        <Text style={styles.reportIdealTitle}>💡 GOLD-STANDARD MODEL ANSWER:</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.cardVoiceBtnAccent}
@@ -1068,6 +1103,7 @@ export default function MockInterviewScreen() {
           setGazeWarning={setGazeWarning}
           setAwaySeconds={setAwaySeconds}
           onDisqualified={(reason: string) => setDisqualified(reason)}
+          sessionTimeRemaining={sessionTimeRemaining}
         />
 
         {/* Anti-Cheating Disqualification Modal Overlay */}
@@ -1110,9 +1146,28 @@ export default function MockInterviewScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
 
-        <View style={styles.timerBadge}>
-          <Ionicons name="time-outline" size={14} color={Colors.primary} />
-          <Text style={styles.timerText}>{formatTime(timer)}</Text>
+        <View
+          style={[
+            styles.timerBadge,
+            sessionTimeRemaining < 300 && {
+              borderColor: 'rgba(255, 59, 48, 0.45)',
+              backgroundColor: 'rgba(255, 59, 48, 0.15)',
+            },
+          ]}
+        >
+          <Ionicons
+            name="time-outline"
+            size={14}
+            color={sessionTimeRemaining < 300 ? '#FF3B30' : Colors.primary}
+          />
+          <Text
+            style={[
+              styles.timerText,
+              sessionTimeRemaining < 300 && { color: '#FF3B30' },
+            ]}
+          >
+            {formatTime(sessionTimeRemaining)}
+          </Text>
         </View>
 
         <TouchableOpacity
