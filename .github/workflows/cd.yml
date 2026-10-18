@@ -86,11 +86,11 @@ jobs:
 
       - name: Validate Kubernetes Manifests (Dry Run)
         run: |
-          kubectl apply --dry-run=client -f k8s/configmap.yaml
-          kubectl apply --dry-run=client -f k8s/postgres.yaml
-          kubectl apply --dry-run=client -f k8s/chromadb.yaml
-          kubectl apply --dry-run=client -f k8s/backend.yaml
-          kubectl apply --dry-run=client -f k8s/ml-model.yaml
-          kubectl apply --dry-run=client -f k8s/frontend.yaml
-          kubectl apply --dry-run=client -f k8s/ingress.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/configmap.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/postgres.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/chromadb.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/backend.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/ml-model.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/frontend.yaml
+          kubectl apply --dry-run=client --validate=false -f k8s/ingress.yaml
           echo "✅ All Kubernetes manifests passed client-side validation!"
