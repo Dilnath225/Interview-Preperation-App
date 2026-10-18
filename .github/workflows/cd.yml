@@ -68,7 +68,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ========================================================
-  # DEPLOY TO KUBERNETES
+  # VALIDATE KUBERNETES MANIFESTS
   # ========================================================
   deploy-k8s:
     name: Kubernetes Deployment Validation
@@ -79,18 +79,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Validate Kubernetes Manifests (Offline)
+        uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
-          version: 'latest'
-
-      - name: Validate Kubernetes Manifests (Dry Run)
-        run: |
-          kubectl apply --dry-run=client --validate=false -f k8s/configmap.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/postgres.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/chromadb.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/backend.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/ml-model.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/frontend.yaml
-          kubectl apply --dry-run=client --validate=false -f k8s/ingress.yaml
-          echo "✅ All Kubernetes manifests passed client-side validation!"
+          entrypoint: '/kubeconform'
+          args: '-summary -ignore-missing-schemas k8s/'
