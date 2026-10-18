@@ -2,7 +2,7 @@ import app from './app';
 import { ENV } from './config/env';
 import { prisma } from './config/prisma';
 import { CodingService } from './services/coding.service';
-
+// Nodemon reload trigger for ATS Seniority Alignment logic
 import { AuthService } from './services/auth.service';
 
 const PORT = parseInt(ENV.PORT, 10) || 5000;

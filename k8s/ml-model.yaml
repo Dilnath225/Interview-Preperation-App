@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-mentor-ml
+  namespace: default
+  labels:
+    app: ai-mentor-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-mentor-ml
+  template:
+    metadata:
+      labels:
+        app: ai-mentor-ml
+    spec:
+      containers:
+        - name: ml-model
+          image: ghcr.io/your-username/ai-mentor-ml:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: ai-mentor-config
+            - secretRef:
+                name: ai-mentor-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1.5Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-mentor-ml
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8001
+      targetPort: 8001
+  selector:
+    app: ai-mentor-ml

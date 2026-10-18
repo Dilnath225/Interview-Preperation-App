@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-mentor-chromadb
+  namespace: default
+  labels:
+    app: ai-mentor-chromadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-mentor-chromadb
+  template:
+    metadata:
+      labels:
+        app: ai-mentor-chromadb
+    spec:
+      containers:
+        - name: chromadb
+          image: chromadb/chroma:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: IS_PERSISTENT
+              value: "TRUE"
+            - name: ANONYMIZED_TELEMETRY
+              value: "FALSE"
+          volumeMounts:
+            - name: chroma-storage
+              mountPath: /chroma/chroma
+      volumes:
+        - name: chroma-storage
+          persistentVolumeClaim:
+            claimName: chroma-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-mentor-chromadb
+  namespace: default
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: ai-mentor-chromadb

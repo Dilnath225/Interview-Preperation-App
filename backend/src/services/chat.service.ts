@@ -40,39 +40,15 @@ export class ChatService {
 
     let aiReply = '';
 
-    // A. Priority 1: Call Python ML Microservice (FastAPI + RAG + Gemini LLM)
-    try {
-      const mlServiceUrl = ENV.ML_SERVICE_URL || 'http://localhost:8001';
-      const mlResponse = await axios.post(
-        `${mlServiceUrl}/api/ai/chat`,
-        {
-          message: userMessage,
-          context,
-          history: historyText,
-          user_profile: userProfile
-            ? {
-                targetRole: userProfile.targetRole || 'Software Engineer',
-                skills: userProfile.skills || '',
-              }
-            : undefined,
-        },
-        { timeout: 15000 }
-      );
-
-      if (mlResponse.data?.reply) {
-        aiReply = mlResponse.data.reply;
-      }
-    } catch (err: any) {
-      console.log(
-        'Python ML microservice (RAG) not reachable or timed out, trying direct Gemini API...'
-      );
-    }
-
-    // B. Priority 2: Direct Google Gemini API Call (without RAG)
-    if (!aiReply && ENV.GEMINI_API_KEY) {
-      try {
-        const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering internships, junior developer roles, and tech interviews in Sri Lanka and globally.
-Provide a crisp, encouraging, highly structured response using markdown formatting, bullet points, and real-world software engineering best practices (STAR method, system design tradeoffs, algorithmic complexity).
+    // A. Priority 1: Direct Google Gemini API Call (ultra-fast 2026 models with multi-language & Singlish support)
+    if (ENV.GEMINI_API_KEY) {
+      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash'];
+      const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering internships, junior developer roles, and tech interviews in Sri Lanka and globally.
+You fluently understand English, Sinhala, and Singlish (Sinhala written with English letters like "Wdada oya", "Katha karanna puluwanda", "Mata interview ekata help ekak ona").
+- If the candidate communicates in Sinhala or Singlish, reply naturally and warmly in friendly Sinhala or Singlish to make them comfortable, while providing elite software engineering career guidance!
+- If the candidate asks in English, provide a crisp, encouraging, highly structured response using markdown formatting, bullet points, and real-world software engineering best practices (STAR method, system design tradeoffs, algorithmic complexity).
+${userProfile?.targetRole ? `- Candidate Target Role: ${userProfile.targetRole}` : ''}
+${userProfile?.skills ? `- Candidate Skills: ${userProfile.skills}` : ''}
 
 Conversation History:
 ${historyText}
@@ -82,23 +58,60 @@ ${userMessage}
 
 AI Mentor Response:`;
 
-        const response = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${ENV.GEMINI_API_KEY}`,
-          {
-            contents: [
-              {
-                parts: [{ text: systemPrompt }],
-              },
-            ],
+      for (const model of candidateModels) {
+        try {
+          const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.GEMINI_API_KEY}`,
+            {
+              contents: [
+                {
+                  parts: [{ text: systemPrompt }],
+                },
+              ],
+            },
+            { timeout: 10000 }
+          );
+
+          const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            aiReply = text.trim();
+            break;
           }
+        } catch (modelErr: any) {
+          console.warn(`[ChatService] Gemini model '${model}' failed (${modelErr?.response?.status || modelErr?.message}), trying fallback...`);
+        }
+      }
+    }
+
+    // B. Priority 2: Call Python ML Microservice (FastAPI + RAG + Gemini LLM)
+    if (!aiReply) {
+      try {
+        const mlServiceUrl = ENV.ML_SERVICE_URL || 'http://127.0.0.1:8001';
+        const mlResponse = await axios.post(
+          `${mlServiceUrl}/api/ai/chat`,
+          {
+            message: userMessage,
+            context,
+            history: historyText,
+            user_profile: userProfile
+              ? {
+                  targetRole: userProfile.targetRole || 'Software Engineer',
+                  skills: userProfile.skills || '',
+                }
+              : undefined,
+          },
+          { timeout: 20000 }
         );
 
-        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          aiReply = text.trim();
+        if (mlResponse.data?.reply) {
+          aiReply = mlResponse.data.reply;
         }
       } catch (err: any) {
-        console.warn('Gemini direct API call failed:', err.message);
+        console.log(
+          '[ChatService] ML microservice error:',
+          err?.response?.status,
+          err?.message || err
+        );
       }
     }
 

@@ -39,8 +39,9 @@ export class InterviewController {
   static complete = async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     if (!id) throw ApiError.badRequest('Session ID is required.');
+    const { answers } = req.body;
 
-    const result = await InterviewService.completeSession(id);
+    const result = await InterviewService.completeSession(id, answers);
     return sendResponse(res, 200, result, 'Interview completed');
   };
 
@@ -114,13 +115,44 @@ export class InterviewController {
       );
 
       if (!transcription) {
-        transcription = 'I approached this problem systematically by assessing technical trade-offs, collaborating with the team, and executing a robust solution.';
+        transcription = '';
       }
 
       return sendResponse(res, 200, { transcription }, 'Audio transcribed successfully');
     } catch (err) {
       console.error('Transcription error:', err);
-      return sendResponse(res, 200, { transcription: 'I approached this problem systematically by assessing technical trade-offs, collaborating with the team, and executing a robust solution.' }, 'Audio transcription finished');
+      return sendResponse(res, 200, { transcription: '' }, 'Audio transcription finished');
+    }
+  };
+
+  static detectGaze = async (req: AuthRequest, res: Response) => {
+    const { image_base64 } = req.body;
+    if (!image_base64) {
+      return sendResponse(res, 200, {
+        direction: 'FACE_MISSING',
+        is_looking_away: true,
+        confidence: 0.98,
+        warning_message: '⚠️ Candidate left interview screen! Return immediately (Interview terminates in 60s).',
+      }, 'Gaze evaluated');
+    }
+
+    try {
+      const mlUrl = process.env.ML_SERVICE_URL || 'http://localhost:8001';
+      const axios = require('axios');
+      const response = await axios.post(
+        `${mlUrl}/api/ai/gaze-detection`,
+        { image_base64 },
+        { timeout: 5000 }
+      );
+      return sendResponse(res, 200, response.data, 'Gaze evaluated');
+    } catch (err: any) {
+      console.warn('[InterviewController] Gaze detection proxy note:', err.message);
+      return sendResponse(res, 200, {
+        direction: 'CENTERED',
+        is_looking_away: false,
+        confidence: 0.90,
+        warning_message: '',
+      }, 'Gaze evaluated (fallback)');
     }
   };
 }

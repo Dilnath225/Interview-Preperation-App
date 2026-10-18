@@ -215,53 +215,122 @@ def _heuristic_analysis(text: str, target_role: str, industry: str) -> dict:
         clarity_score += 5
     clarity_score = min(95, clarity_score)
 
-    # --- Overall (weighted) ---
+    # --- Overall (weighted: 40% Keywords, 25% Impact, 20% Relevance, 15% Clarity) ---
     overall = round(
-        keyword_score * 0.30 +
-        impact_score * 0.30 +
-        experience_score * 0.25 +
+        keyword_score * 0.40 +
+        impact_score * 0.25 +
+        experience_score * 0.20 +
         clarity_score * 0.15
     )
 
-    # --- Detect seniority ---
+    # --- Accurate Candidate Seniority Detection ---
+    is_undergrad = bool(re.search(r'\b(undergraduate|student|intern|internship|trainee|undergrad|bachelor|bsc|candidate)\b', text_lower))
+    has_lead_experience = bool(re.search(r'\b(tech lead|team lead|lead developer|engineering manager|principal engineer|solutions architect)\b', text_lower))
+    has_senior_experience = bool(re.search(r'\b(senior software engineer|senior developer|senior engineer|sr\.)\b', text_lower))
+
+    detected_years = 0
     if has_experience_years:
         years_match = re.search(r'(\d+)\+?\s*(years?|yrs?)', text_lower)
-        years = int(years_match.group(1)) if years_match else 0
-        if years >= 8:
-            seniority = "Senior / Staff Level"
-        elif years >= 4:
-            seniority = "Mid-Level"
-        elif years >= 1:
-            seniority = "Junior / Early Career"
-        else:
-            seniority = "Entry-Level / Intern"
+        if years_match:
+            detected_years = int(years_match.group(1))
+
+    # If undergraduate or intern is explicitly present, clamp base years
+    if is_undergrad and detected_years > 2:
+        detected_years = 1  # Student degree year or academic duration
+
+    if has_lead_experience and detected_years >= 6 and not is_undergrad:
+        candidate_level = 4
+        seniority = "Tech Lead / Principal (6+ yrs)"
+    elif (has_senior_experience or detected_years >= 5) and not is_undergrad:
+        candidate_level = 3
+        seniority = "Senior Level (4-6 yrs)"
+    elif detected_years >= 2 and not is_undergrad:
+        candidate_level = 2
+        seniority = "Mid-Level (2-3 yrs)"
+    elif detected_years >= 1 and not is_undergrad:
+        candidate_level = 1
+        seniority = "Junior / Associate (1-2 yrs)"
     else:
-        seniority = "Entry-Level / Intern"
+        candidate_level = 0
+        seniority = "Entry-Level / Intern / Student (0-1 yr)"
 
     detected_domain = f"{industry.replace('_', ' ').title()} — {seniority}"
 
-    # --- Executive Summary ---
-    if overall >= 85:
-        summary = (
-            f"Strong candidate profile for {target_role} with excellent keyword alignment and "
-            f"quantified impact statements. Resume demonstrates production-ready competencies "
-            f"and is well-positioned for ATS screening at top-tier organizations."
-        )
-    elif overall >= 70:
-        summary = (
-            f"Solid foundation for {target_role} applications. Resume covers core competencies "
-            f"but needs refinement in impact quantification and keyword optimization to "
-            f"consistently pass enterprise ATS filters."
-        )
+    # --- Target Role Seniority Classification ---
+    target_lower = target_role.lower()
+    if any(k in target_lower for k in ['lead', 'principal', 'architect', 'staff', 'manager', 'director', 'head']):
+        target_level = 4
+        role_category = "Tech Lead / Principal"
+    elif any(k in target_lower for k in ['senior', 'sr.', 'specialist']):
+        target_level = 3
+        role_category = "Senior Software Engineer"
+    elif any(k in target_lower for k in ['mid', 'experienced', 'level 2', 'ii']):
+        target_level = 2
+        role_category = "Mid-Level Engineer"
+    elif any(k in target_lower for k in ['junior', 'associate', 'jr.', 'level 1', 'graduate']):
+        target_level = 1
+        role_category = "Junior Developer"
+    elif any(k in target_lower for k in ['intern', 'internship', 'trainee', 'student']):
+        target_level = 0
+        role_category = "Software Engineer Intern"
     else:
-        summary = (
-            f"Resume requires significant enhancement for {target_role} positions. Key gaps "
-            f"in industry-standard keywords, quantified achievements, and structural clarity "
-            f"will likely cause ATS rejection at competitive organizations."
-        )
+        target_level = 2  # General "Software Engineer" / "Fullstack Developer"
+        role_category = "Software Engineer"
 
-    # --- Red Flags ---
+    # --- Seniority Gap Calculation & Score Penalties ---
+    seniority_gap = target_level - candidate_level
     red_flags = []
+
+    if seniority_gap >= 3:
+        # Severe Mismatch (e.g. Intern applying for Tech Lead / Principal)
+        experience_score = min(experience_score, 24)
+        overall = min(overall, 38)
+        summary = (
+            f"⚠️ Critical Seniority Mismatch: Target role is {target_role} ({role_category}), but candidate profile "
+            f"demonstrates {seniority}. A {target_role} position strictly mandates 6-8+ years of production experience, "
+            f"high-scale system architecture, and engineering team leadership. An undergraduate or entry-level resume "
+            f"will be immediately filtered out by enterprise ATS systems for this seniority. We strongly recommend targeting "
+            f"'Software Engineer Intern' or 'Junior Associate' positions where this resume will be highly competitive."
+        )
+        red_flags.append(f"CRITICAL SENIORITY DEFICIT: {target_role} requires 6-8+ years and team management; candidate profile is {seniority}.")
+        red_flags.append(f"LACK OF ARCHITECTURAL OWNERSHIP: Zero evidence of leading architectural roadmaps, sprint planning, hiring, or mentoring expected of a {target_role}.")
+    elif seniority_gap == 2:
+        # Significant Mismatch (e.g. Intern applying for Senior, or Junior applying for Lead)
+        experience_score = min(experience_score, 36)
+        overall = min(overall, 48)
+        summary = (
+            f"⚠️ Seniority Gap Identified: Applying for {target_role} ({role_category}) with {seniority}. "
+            f"While foundational technical skills are present, enterprise ATS filters for {target_role} look for 4-6+ years "
+            f"of independent production delivery, system design depth, and ownership beyond early career tenure."
+        )
+        red_flags.append(f"SENIORITY GAP: {target_role} typically requires 4-6+ years production tenure; candidate shows {seniority}.")
+    elif seniority_gap == 1:
+        # Slight stretch (e.g. Intern applying for Mid-Level)
+        overall = min(overall, 65)
+        summary = (
+            f"Stretch Candidate for {target_role}: Candidate has {seniority}. Meets entry requirements but will face "
+            f"tough competition against candidates with 2-3+ years of dedicated commercial experience."
+        )
+        red_flags.append(f"Experience Stretch: Target role ({target_role}) expects more commercial production history than currently shown.")
+    else:
+        # Good Alignment (Intern -> Intern, Junior -> Junior, etc.)
+        if overall >= 85:
+            summary = (
+                f"Strong candidate profile for {target_role} with excellent keyword alignment and "
+                f"quantified impact statements. Experience level ({seniority}) well matches role expectations."
+            )
+        elif overall >= 70:
+            summary = (
+                f"Solid foundation for {target_role} applications. Experience level ({seniority}) is appropriate. "
+                f"Resume covers core competencies but needs refinement in impact quantification and keyword optimization."
+            )
+        else:
+            summary = (
+                f"Resume requires enhancement for {target_role} applications. Key gaps in industry keywords "
+                f"and structural clarity should be addressed to pass enterprise ATS filters."
+            )
+
+    # --- Standard Red Flags ---
     if not has_metrics:
         red_flags.append("No quantified achievements found — ATS systems deprioritize resumes without measurable impact.")
     if len(found_verbs) < 3:
@@ -319,6 +388,8 @@ def _heuristic_analysis(text: str, target_role: str, industry: str) -> dict:
 
     # --- Action Plan ---
     action_plan = []
+    if seniority_gap >= 2:
+        action_plan.append(f"Re-align Target Role to 'Software Engineer Intern' or 'Junior Developer': Your current background ({seniority}) is primed for student/internship applications where it will achieve a 75-88%+ score, whereas applying for {target_role} results in immediate ATS rejection.")
     if len(missing) > 0:
         action_plan.append(f"Add these critical {target_role} keywords to your Skills and Experience sections: {', '.join(missing[:5])}.")
     if not has_metrics:
@@ -441,29 +512,34 @@ class ATSService:
         if not genai or not GEMINI_API_KEY:
             return None
 
-        try:
-            model = genai.GenerativeModel("gemini-3.5-flash")
+        # Try active models with appropriate timeouts for full document parsing
+        candidate_models = [
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-3.8-flash",
+        ]
 
-            # Build the enterprise ATS prompt
-            jd_block = ""
-            if job_description:
-                jd_block = f"""
+        # Build the enterprise ATS prompt
+        jd_block = ""
+        if job_description:
+            jd_block = f"""
 [TARGET_JOB_DESCRIPTION]
 \"\"\"
 {job_description[:3000]}
 \"\"\"
 """
 
-            rag_block = ""
-            if rag_context:
-                rag_block = f"""
+        rag_block = ""
+        if rag_context:
+            rag_block = f"""
 [RAG_INDUSTRY_BENCHMARKS]
 \"\"\"
 {rag_context[:2000]}
 \"\"\"
 """
 
-            prompt = f"""You are an Enterprise-Grade Applicant Tracking System (ATS) Parsing Engine and Executive Career Strategist with deep recruitment expertise across ALL global industries.
+        prompt = f"""You are an Enterprise-Grade Applicant Tracking System (ATS) Parsing Engine and Executive Career Strategist with deep recruitment expertise across ALL global industries.
 
 [TARGET_ROLE]: {target_role}
 [INDUSTRY]: {industry.replace('_', ' ').title()}
@@ -480,11 +556,11 @@ class ATSService:
 2. **Domain Adaptability:** Dynamically shift your evaluation rubric based on the TARGET_ROLE and INDUSTRY.
 3. **RAG Context Utilization:** Cross-reference the resume against the RAG_INDUSTRY_BENCHMARKS provided to check for current market-standard competencies, certifications, and keywords.
 
-# EVALUATION DIMENSIONS
-- **Keyword & Semantic Alignment (30%):** Hard skills, domain tools, methodologies, and industry terminology matching the target role.
-- **Impact & Quantification (30%):** Use of action verbs, measurable outcomes (metrics, percentages, revenue, time saved, scale), and the XYZ/STAR impact formula rather than passive duty listing.
-- **Role & Seniority Fit (25%):** Career progression, relevant experience depth, education, and certifications matching the seniority level.
-- **Structural & Clarity Index (15%):** Logical sectioning, brevity, absence of buzzword fluff, and professional presentation.
+# SCORING RUBRIC (Weighted Section Breakdown - Total 100%)
+- **Keyword Alignment & ATS Parsability (40%):** Exact & semantic match of core skills, domain tools, methodologies, and certifications.
+- **Quantifiable Impact & Metrics (25%):** Adoption of Google's XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]") with clear numerical metrics.
+- **Role & Experience Relevance (20%):** Alignment of past responsibilities with seniority level and industry expectations.
+- **Formatting, Structure & Readability (15%):** Clear structural hierarchy, logical sectioning, professional bullet syntax.
 
 # OUTPUT FORMAT (STRICT JSON)
 Respond ONLY with a valid, raw JSON object adhering to this exact schema (no markdown code blocks):
@@ -514,66 +590,77 @@ Respond ONLY with a valid, raw JSON object adhering to this exact schema (no mar
   "tailored_action_plan": ["<string: step-by-step improvements to reach a 90+ score for this specific role>"]
 }}"""
 
-            response = model.generate_content(prompt)
-            if not response or not response.text:
-                return None
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                try:
+                    response = model.generate_content(prompt, request_options={"timeout": 35.0})
+                except TypeError:
+                    response = model.generate_content(prompt)
+                if not response or not response.text:
+                    continue
 
-            # Parse JSON from response
-            raw = response.text.strip()
-            raw = raw.replace("```json", "").replace("```", "").strip()
-            parsed = json.loads(raw)
+                # Parse JSON from response
+                raw = response.text.strip()
+                raw = raw.replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(raw)
 
-            # Validate and clamp scores
-            section_scores = parsed.get("section_scores", {})
-            overall = max(0, min(100, parsed.get("ats_compatibility_score", 0)))
+                # Validate and clamp scores
+                section_scores = parsed.get("section_scores", {})
+                overall = max(0, min(100, parsed.get("ats_compatibility_score", 0)))
 
-            result = {
-                "ats_compatibility_score": overall,
-                "section_scores": {
-                    "keyword_alignment": max(0, min(100, section_scores.get("keyword_alignment", 0))),
-                    "impact_and_metrics": max(0, min(100, section_scores.get("impact_and_metrics", 0))),
-                    "experience_relevance": max(0, min(100, section_scores.get("experience_relevance", 0))),
-                    "clarity_and_structure": max(0, min(100, section_scores.get("clarity_and_structure", 0))),
-                },
-                "detected_domain": parsed.get("detected_domain", f"{industry.title()} — Unknown"),
-                "executive_summary": parsed.get("executive_summary", ""),
-                "keyword_analysis": {
-                    "matched_keywords": parsed.get("keyword_analysis", {}).get("matched_keywords", []),
-                    "missing_critical_keywords": parsed.get("keyword_analysis", {}).get("missing_critical_keywords", []),
-                    "recommended_certifications_or_tools": parsed.get("keyword_analysis", {}).get("recommended_certifications_or_tools", []),
-                },
-                "critical_red_flags": parsed.get("critical_red_flags", []),
-                "bullet_point_optimizations": parsed.get("bullet_point_optimizations", []),
-                "tailored_action_plan": parsed.get("tailored_action_plan", []),
-            }
+                result = {
+                    "ats_compatibility_score": overall,
+                    "section_scores": {
+                        "keyword_alignment": max(0, min(100, section_scores.get("keyword_alignment", 0))),
+                        "impact_and_metrics": max(0, min(100, section_scores.get("impact_and_metrics", 0))),
+                        "experience_relevance": max(0, min(100, section_scores.get("experience_relevance", 0))),
+                        "clarity_and_structure": max(0, min(100, section_scores.get("clarity_and_structure", 0))),
+                    },
+                    "detected_domain": parsed.get("detected_domain", f"{industry.title()} — Unknown"),
+                    "executive_summary": parsed.get("executive_summary", ""),
+                    "keyword_analysis": {
+                        "matched_keywords": parsed.get("keyword_analysis", {}).get("matched_keywords", []),
+                        "missing_critical_keywords": parsed.get("keyword_analysis", {}).get("missing_critical_keywords", []),
+                        "recommended_certifications_or_tools": parsed.get("keyword_analysis", {}).get("recommended_certifications_or_tools", []),
+                    },
+                    "critical_red_flags": parsed.get("critical_red_flags", []),
+                    "bullet_point_optimizations": parsed.get("bullet_point_optimizations", []),
+                    "tailored_action_plan": parsed.get("tailored_action_plan", []),
+                }
 
-            # Add legacy compatibility fields
-            result["overallScore"] = overall
-            result["atsScore"] = result["section_scores"]["keyword_alignment"]
-            result["formattingScore"] = result["section_scores"]["clarity_and_structure"]
-            result["impactScore"] = result["section_scores"]["impact_and_metrics"]
-            result["detectedKeywords"] = result["keyword_analysis"]["matched_keywords"]
-            result["missingKeywords"] = result["keyword_analysis"]["missing_critical_keywords"][:6]
-            result["suggestions"] = result["tailored_action_plan"][:5]
-            result["strengths"] = []
+                # Add legacy compatibility fields
+                result["overallScore"] = overall
+                result["atsScore"] = result["section_scores"]["keyword_alignment"]
+                result["formattingScore"] = result["section_scores"]["clarity_and_structure"]
+                result["impactScore"] = result["section_scores"]["impact_and_metrics"]
+                result["detectedKeywords"] = result["keyword_analysis"]["matched_keywords"]
+                result["missingKeywords"] = result["keyword_analysis"]["missing_critical_keywords"][:6]
+                result["suggestions"] = result["tailored_action_plan"][:5]
+                result["strengths"] = []
 
-            # Derive strengths from scores
-            if result["section_scores"]["keyword_alignment"] >= 75:
-                result["strengths"].append("Strong keyword alignment with target role requirements")
-            if result["section_scores"]["impact_and_metrics"] >= 75:
-                result["strengths"].append("Excellent use of quantified impact statements")
-            if result["section_scores"]["experience_relevance"] >= 75:
-                result["strengths"].append("Relevant experience depth matches seniority expectations")
-            if result["section_scores"]["clarity_and_structure"] >= 75:
-                result["strengths"].append("Clean, ATS-parseable resume structure")
-            if not result["strengths"]:
-                result["strengths"].append("Resume submitted — demonstrates initiative for career growth")
+                # Derive strengths from scores
+                if result["section_scores"]["keyword_alignment"] >= 75:
+                    result["strengths"].append("Strong keyword alignment with target role requirements")
+                if result["section_scores"]["impact_and_metrics"] >= 75:
+                    result["strengths"].append("Excellent use of quantified impact statements")
+                if result["section_scores"]["experience_relevance"] >= 75:
+                    result["strengths"].append("Relevant experience depth matches seniority expectations")
+                if result["section_scores"]["clarity_and_structure"] >= 75:
+                    result["strengths"].append("Clean, ATS-parseable resume structure")
+                if not result["strengths"]:
+                    result["strengths"].append("Resume submitted — demonstrates initiative for career growth")
 
-            return result
+                return result
 
-        except json.JSONDecodeError as e:
-            print(f"[ATSService] Gemini response JSON parse error: {e}")
-            return None
-        except Exception as e:
-            print(f"[ATSService] Gemini analysis error: {e}")
-            return None
+            except json.JSONDecodeError as e:
+                print(f"[ATSService] Model {model_name} JSON parse error: {e}")
+                continue
+            except Exception as e:
+                print(f"[ATSService] Model {model_name} failed: {e}")
+                if "429" in str(e) or "Quota exceeded" in str(e):
+                    print("[ATSService] Gemini API quota reached. Switching immediately to RAG / Heuristic engine.")
+                    break
+                continue
+
+        return None

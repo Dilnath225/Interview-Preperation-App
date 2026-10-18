@@ -14,6 +14,7 @@ interface ProgressRingProps {
   subLabel?: string;
   color?: string;
   style?: ViewStyle;
+  children?: React.ReactNode;
 }
 
 export const ProgressRing: React.FC<ProgressRingProps> = ({
@@ -24,6 +25,7 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   subLabel,
   color = Colors.primary,
   style,
+  children,
 }) => {
   const displayLabel = label !== undefined ? label : `${Math.round(progress)}%`;
 
@@ -37,14 +39,23 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
           borderRadius: size / 2,
           borderWidth: strokeWidth,
           borderColor: color,
+          backgroundColor: `${color}12`,
         },
         style,
       ]}
     >
-      <Text style={[styles.labelText, { fontSize: size > 70 ? Typography.h5 : Typography.bodySmall }]}>
-        {displayLabel}
-      </Text>
-      {subLabel && <Text style={styles.subLabelText}>{subLabel}</Text>}
+      {children ? (
+        children
+      ) : (
+        <>
+          {displayLabel !== '' && (
+            <Text style={[styles.labelText, { fontSize: size > 70 ? Typography.h5 : Typography.bodySmall, color }]}>
+              {displayLabel}
+            </Text>
+          )}
+          {subLabel && <Text style={styles.subLabelText}>{subLabel}</Text>}
+        </>
+      )}
     </View>
   );
 };
@@ -53,7 +64,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 245, 212, 0.05)',
   },
   labelText: {
     fontWeight: Typography.bold,

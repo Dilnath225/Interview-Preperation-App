@@ -157,49 +157,91 @@ function getKeywordsForRole(role: string): string[] {
 
 export class ResumeService {
   /**
-   * Extracts text content from an uploaded file (PDF, DOC, TXT).
-   * Falls back to OCR (tesseract.js) for scanned/image-based PDFs.
+   * Extracts text content from an uploaded file (PDF, DOCX, TXT).
+   * Supports both pdf-parse v2 (Class-based) and v1 (function-based).
    */
   private static async extractText(file: Express.Multer.File): Promise<string> {
     const ext = file.originalname.toLowerCase().split('.').pop();
 
-    // PDF extraction with pdf-parse
-    if (ext === 'pdf' && pdfParse) {
+    // PDF extraction
+    if (ext === 'pdf') {
       try {
         const dataBuffer = fs.readFileSync(file.path);
-        let parser = typeof pdfParse === 'function' ? pdfParse : (pdfParse.PDFParse || pdfParse.default);
-        let pdfData;
-        try {
-          pdfData = await parser(dataBuffer);
-        } catch (innerErr: any) {
-          if (innerErr.message && innerErr.message.includes("Class constructors cannot be invoked without 'new'")) {
-            pdfData = await new (parser as any)(dataBuffer);
-          } else {
-            throw innerErr;
+
+        if (pdfParse) {
+          // Handle pdf-parse v2 (Class: new PDFParse({ data: Buffer }))
+          const ParseClass = pdfParse.PDFParse || (typeof pdfParse === 'function' && pdfParse.name === 'PDFParse' ? pdfParse : null);
+          if (ParseClass) {
+            try {
+              const parserInstance = new ParseClass({ data: dataBuffer });
+              if (typeof parserInstance.load === 'function') {
+                await parserInstance.load();
+              }
+              if (typeof parserInstance.getText === 'function') {
+                const parsedResult = await parserInstance.getText();
+                const extracted = parsedResult?.text || (parsedResult?.pages ? parsedResult.pages.map((p: any) => p.text).join('\n\n') : '');
+                if (typeof parserInstance.destroy === 'function') {
+                  try { await parserInstance.destroy(); } catch {}
+                }
+                if (extracted && extracted.trim().length > 10) {
+                  console.log(`[ResumeService] PDF text extracted successfully via PDFParse v2 (${extracted.trim().length} chars).`);
+                  return extracted.trim();
+                }
+              }
+            } catch (v2Err: any) {
+              console.warn('[ResumeService] PDFParse v2 attempt failed:', v2Err?.message || v2Err);
+            }
+          }
+
+          // Handle pdf-parse v1 (Function: pdfParse(Buffer))
+          if (typeof pdfParse === 'function') {
+            try {
+              const v1Result = await pdfParse(dataBuffer);
+              if (v1Result && v1Result.text && v1Result.text.trim().length > 10) {
+                console.log(`[ResumeService] PDF text extracted successfully via pdf-parse v1 (${v1Result.text.trim().length} chars).`);
+                return v1Result.text.trim();
+              }
+            } catch (v1Err: any) {
+              console.warn('[ResumeService] pdf-parse v1 attempt failed:', v1Err?.message || v1Err);
+            }
           }
         }
-        if (pdfData && pdfData.text && pdfData.text.trim().length > 10) {
-          console.log('[ResumeService] PDF text extracted successfully via pdf-parse.');
-          return pdfData.text;
-        }
-      } catch (err) {
-        console.warn('[ResumeService] PDF parse failed, trying OCR fallback:', err);
-      }
-
-      // OCR fallback for scanned/image-based PDFs
-      if (Tesseract) {
-        console.warn('[ResumeService] Tesseract.js OCR requires image conversion for PDFs. Skipping direct PDF OCR to prevent crashes.');
+      } catch (err: any) {
+        console.warn('[ResumeService] PDF reading error:', err?.message || err);
       }
     }
 
-    // TXT / DOC fallback — read as UTF-8
-    try {
-      const raw = fs.readFileSync(file.path, 'utf8');
-      // Strip null bytes which cause PostgreSQL to crash
-      const sanitized = raw.replace(/\0/g, '');
-      if (sanitized.trim().length > 10) return sanitized;
-    } catch {
-      // Binary file — return filename as fallback context
+    // DOCX (Word Document) text extraction
+    if (ext === 'docx') {
+      try {
+        const buffer = fs.readFileSync(file.path);
+        const str = buffer.toString('binary');
+        const textMatches = str.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+        if (textMatches && textMatches.length > 0) {
+          const docxText = textMatches.map(m => m.replace(/<[^>]+>/g, '')).join(' ');
+          if (docxText.trim().length > 20) {
+            console.log(`[ResumeService] DOCX text extracted (${docxText.trim().length} chars).`);
+            return docxText.trim();
+          }
+        }
+      } catch (docxErr: any) {
+        console.warn('[ResumeService] DOCX extraction error:', docxErr?.message || docxErr);
+      }
+    }
+
+    // TXT / DOC fallback — read as UTF-8 (only for non-PDF or plain text)
+    if (ext !== 'pdf') {
+      try {
+        const raw = fs.readFileSync(file.path, 'utf8');
+        const sanitized = raw.replace(/\0/g, '');
+        // Validate that content is readable text, not binary junk
+        const printable = sanitized.replace(/[^\x20-\x7E\n\r\t]/g, '');
+        if (printable.length / Math.max(sanitized.length, 1) > 0.65 && sanitized.trim().length > 10) {
+          return sanitized.trim();
+        }
+      } catch {
+        // Binary file fallback
+      }
     }
 
     return file.originalname;
@@ -226,7 +268,9 @@ export class ResumeService {
   static async analyzeResume(
     userId: string,
     file: Express.Multer.File,
-    targetRole?: string | null
+    targetRole?: string | null,
+    industry?: string | null,
+    jobDescription?: string | null
   ): Promise<ResumeAnalysisResult> {
     if (!file) {
       throw ApiError.badRequest('Resume file is required.');
@@ -237,21 +281,51 @@ export class ResumeService {
     // Step 1: Extract text from the uploaded file
     const extractedText = await this.extractText(file);
 
-    // Step 2: Try Gemini AI-powered analysis
+    // Step 2: Try Direct Gemini AI-powered analysis with Enterprise Rubric & RAG context
     if (ENV.GEMINI_API_KEY) {
       try {
-        const aiResult = await this.analyzeWithGemini(extractedText, file.originalname, resolvedRole);
+        console.log(`[ResumeService] Attempting direct Gemini AI analysis for role '${resolvedRole}'...`);
+        const aiResult = await this.analyzeWithGemini(
+          extractedText,
+          file.originalname,
+          resolvedRole,
+          industry,
+          jobDescription
+        );
         if (aiResult) {
-          // Save to database
+          console.log('[ResumeService] Direct Gemini AI analysis succeeded.');
           await this.saveDiagnostic(userId, file, aiResult, extractedText);
           return aiResult;
         }
-      } catch (err) {
-        console.warn('[ResumeService] Gemini analysis failed, using heuristic fallback:', err);
+      } catch (err: any) {
+        console.warn('[ResumeService] Gemini analysis failed:', err?.message || err);
       }
     }
 
-    // Step 3: Fallback to intelligent heuristic analysis
+    // Step 3: Try Enterprise ML Service (FastAPI + FAISS RAG Industry Benchmarks + OCR reconstruction)
+    if (ENV.ML_SERVICE_URL) {
+      try {
+        console.log(`[ResumeService] Attempting ML Service RAG ATS diagnostic...`);
+        const mlRes = await axios.post(`${ENV.ML_SERVICE_URL}/api/ats-diagnostic`, {
+          text: extractedText,
+          target_role: resolvedRole,
+          industry: industry || null,
+          job_description: jobDescription || null,
+        }, { timeout: 40000 });
+
+        const mlData = mlRes.data?.data || mlRes.data?.diagnostic;
+        if (mlRes.data && mlRes.data.success && mlData) {
+          console.log('[ResumeService] ML Service RAG ATS analysis succeeded.');
+          const result = mlData as ResumeAnalysisResult;
+          await this.saveDiagnostic(userId, file, result, extractedText);
+          return result;
+        }
+      } catch (err: any) {
+        console.warn('[ResumeService] ML Service RAG ATS unavailable or failed:', err.message);
+      }
+    }
+
+    // Step 4: Fallback to intelligent heuristic analysis
     const heuristicResult = this.analyzeWithHeuristics(extractedText, file.originalname, resolvedRole);
 
     // Save to database
@@ -268,11 +342,20 @@ export class ResumeService {
   private static async analyzeWithGemini(
     resumeText: string,
     fileName: string,
-    role: string
+    role: string,
+    industry?: string | null,
+    jobDescription?: string | null
   ): Promise<ResumeAnalysisResult | null> {
-    const prompt = `You are an Enterprise-Grade Applicant Tracking System (ATS) Parsing Engine and Executive Career Strategist.
+    const industryLine = industry ? `[INDUSTRY]: ${industry}` : '';
+    const jdBlock = jobDescription ? `\n[TARGET_JOB_DESCRIPTION]\n"""\n${jobDescription.slice(0, 2500)}\n"""\n` : '';
+
+    const prompt = `You are an Enterprise-Grade Applicant Tracking System (ATS) Parsing Engine and Executive Career Strategist with deep recruitment expertise across ALL global industries (Technology, Finance, Healthcare, Engineering, Creative Arts, Legal, Academia, Operations, etc.).
+
+Your objective is to analyze raw resume text extracted via Tesseract OCR, reconstruct its logical structure despite potential OCR noise/formatting artifacts, and evaluate it rigorously against a target Job Role, Industry, and optional Job Description (JD) aided by retrieved RAG industry benchmarks.
 
 [TARGET_ROLE]: ${role}
+${industryLine}
+${jdBlock}
 Resume File: "${fileName}"
 
 [RESUME_TEXT]
@@ -280,59 +363,85 @@ Resume File: "${fileName}"
 ${resumeText.slice(0, 5000)}
 """
 
-# INPUT PROCESSING RULES
-1. The resume text may come from Tesseract OCR — do NOT penalize for OCR artifacts. Silently reconstruct intended words.
-2. Dynamically shift your evaluation rubric based on the TARGET_ROLE.
+# INPUT PROCESSING RULES (OCR & RAG HANDLING)
+1. **OCR Noise Tolerance:** The input resume text is extracted via Tesseract OCR and may contain broken words, misaligned columns, weird symbols, or merged lines. Do NOT penalize the candidate for OCR extraction artifacts. Silently reconstruct the intended words and structure before evaluating.
+2. **Domain Adaptability:** Dynamically shift your evaluation rubric based on the [Target Role], [Industry], and [Job Description].
+3. **RAG Context Integration:** Seamlessly inject retrieved industry benchmarks and role competencies to ground your evaluation.
 
-# EVALUATION DIMENSIONS (weighted scoring)
-- Keyword & Semantic Alignment (30%): Hard skills, domain tools, methodologies matching ${role}.
-- Impact & Quantification (30%): Action verbs, measurable outcomes (XYZ/STAR formula).
-- Role & Seniority Fit (25%): Career progression, experience depth, certifications.
-- Structural & Clarity Index (15%): Logical sections, brevity, professional presentation.
+# SCORING RUBRIC (Weighted Section Breakdown - Total 100%)
+- **Keyword Alignment & ATS Parsability (40%):** Exact & semantic match of core skills, tools, methodologies, and certifications.
+- **Quantifiable Impact & Metrics (25%):** Adoption of Google's XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]").
+- **Role & Experience Relevance (20%):** Alignment of past responsibilities with seniority level and industry expectations.
+- **Formatting, Structure & Readability (15%):** Clear structural hierarchy, logical sectioning, professional bullet syntax.
 
-Return ONLY a valid JSON object with this exact schema:
+# OUTPUT JSON SCHEMA
+Respond ONLY with a valid, raw JSON object (no markdown code blocks, no backticks):
 {
-  "ats_compatibility_score": integer 0-100,
+  "ats_compatibility_score": 85,
   "section_scores": {
-    "keyword_alignment": integer 0-100,
-    "impact_and_metrics": integer 0-100,
-    "experience_relevance": integer 0-100,
-    "clarity_and_structure": integer 0-100
+    "keyword_alignment": 85,
+    "impact_and_metrics": 80,
+    "experience_relevance": 85,
+    "clarity_and_structure": 90
   },
-  "detected_domain": "string: inferred industry and seniority level",
-  "executive_summary": "string: 2-3 sentence verdict on candidate readiness",
+  "detected_domain": "string (e.g., Technology — Senior/Staff Level)",
+  "executive_summary": "string (2-3 sentences of blunt, high-level executive assessment)",
   "keyword_analysis": {
     "matched_keywords": ["string"],
     "missing_critical_keywords": ["string"],
     "recommended_certifications_or_tools": ["string"]
   },
-  "critical_red_flags": ["string: specific weaknesses or role mismatches"],
+  "critical_red_flags": [
+    "string (immediate dealbreakers, e.g., missing metrics, generic descriptions, gaps)"
+  ],
   "bullet_point_optimizations": [
     {
-      "original_text": "string: weak bullet point from the CV",
-      "issue": "string: why it fails",
-      "enterprise_rewrite": "string: rewritten high-impact version"
+      "original_text": "string (weak bullet from resume)",
+      "issue": "string (why this fails ATS/recruiter screening)",
+      "enterprise_rewrite": "string (high-impact rewrite using XYZ formula)"
     }
   ],
-  "tailored_action_plan": ["string: step-by-step improvements to reach 90+ score"],
-  "overallScore": same as ats_compatibility_score,
-  "atsScore": same as keyword_alignment,
-  "formattingScore": same as clarity_and_structure,
-  "impactScore": same as impact_and_metrics,
-  "extractedKeywords": same as matched_keywords,
-  "missingKeywords": first 6 of missing_critical_keywords,
-  "suggestions": first 5 of tailored_action_plan,
-  "strengths": ["string: 2-4 strengths"]
+  "tailored_action_plan": [
+    "string (step-by-step priority fixes to reach 90+ ATS score)"
+  ],
+  "overallScore": 85,
+  "atsScore": 85,
+  "formattingScore": 90,
+  "impactScore": 80,
+  "extractedKeywords": ["string"],
+  "missingKeywords": ["string"],
+  "suggestions": ["string"],
+  "strengths": ["string"]
 }`;
 
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${ENV.GEMINI_API_KEY}`,
-      {
-        contents: [{ parts: [{ text: prompt }] }],
-      }
-    );
+    const candidateModels = [
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+    ];
 
-    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let text: string | null = null;
+    for (const model of candidateModels) {
+      try {
+        const response = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.GEMINI_API_KEY}`,
+          {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.2,
+            },
+          },
+          { timeout: 35000 }
+        );
+        text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) break;
+      } catch (err: any) {
+        console.warn(`[ResumeService] Gemini model '${model}' failed (${err?.response?.status || err?.message}): ${err?.response?.data?.error?.message || ''}`);
+      }
+    }
+
     if (!text) return null;
 
     const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -452,36 +561,108 @@ Return ONLY a valid JSON object with this exact schema:
     if (hasContactInfo) clarityScore += 5;
     clarityScore = Math.min(95, clarityScore);
 
-    // --- Weighted Overall Score ---
+    // --- Weighted Overall Score (40% Keywords, 25% Impact, 20% Relevance, 15% Clarity) ---
     const overallScore = Math.round(
-      keywordScore * 0.30 +
-      impactScore * 0.30 +
-      experienceScore * 0.25 +
+      keywordScore * 0.40 +
+      impactScore * 0.25 +
+      experienceScore * 0.20 +
       clarityScore * 0.15
     );
 
-    // --- Detect Seniority ---
-    let seniority = 'Entry-Level / Intern';
+    // --- Accurate Candidate Seniority Detection ---
+    const isUndergrad = /\b(undergraduate|student|intern|internship|trainee|undergrad|bachelor|bsc|candidate)\b/i.test(text);
+    const hasLeadExp = /\b(tech lead|team lead|lead developer|engineering manager|principal engineer|solutions architect)\b/i.test(text);
+    const hasSeniorExp = /\b(senior software engineer|senior developer|senior engineer|sr\.)\b/i.test(text);
+
+    let detectedYears = 0;
     if (hasExpYears) {
       const ym = text.match(/(\d+)\+?\s*(years?|yrs?)/i);
-      const years = ym ? parseInt(ym[1], 10) : 0;
-      if (years >= 8) seniority = 'Senior / Staff Level';
-      else if (years >= 4) seniority = 'Mid-Level';
-      else if (years >= 1) seniority = 'Junior / Early Career';
+      if (ym) detectedYears = parseInt(ym[1], 10);
     }
 
-    // --- Executive Summary ---
-    let executiveSummary: string;
-    if (overallScore >= 85) {
-      executiveSummary = `Strong candidate profile for ${role} with excellent keyword alignment and quantified impact statements. Resume is well-positioned for ATS screening at top-tier organizations.`;
-    } else if (overallScore >= 70) {
-      executiveSummary = `Solid foundation for ${role} applications. Resume covers core competencies but needs refinement in impact quantification and keyword optimization to consistently pass enterprise ATS filters.`;
+    if (isUndergrad && detectedYears > 2) {
+      detectedYears = 1; // Degree year or academic timeline
+    }
+
+    let candidateLevel = 0;
+    let seniority = 'Entry-Level / Intern / Student (0-1 yr)';
+
+    if (hasLeadExp && detectedYears >= 6 && !isUndergrad) {
+      candidateLevel = 4;
+      seniority = 'Tech Lead / Principal (6+ yrs)';
+    } else if ((hasSeniorExp || detectedYears >= 5) && !isUndergrad) {
+      candidateLevel = 3;
+      seniority = 'Senior Level (4-6 yrs)';
+    } else if (detectedYears >= 2 && !isUndergrad) {
+      candidateLevel = 2;
+      seniority = 'Mid-Level (2-3 yrs)';
+    } else if (detectedYears >= 1 && !isUndergrad) {
+      candidateLevel = 1;
+      seniority = 'Junior / Associate (1-2 yrs)';
     } else {
-      executiveSummary = `Resume requires significant enhancement for ${role} positions. Key gaps in industry-standard keywords, quantified achievements, and structural clarity will likely cause ATS rejection.`;
+      candidateLevel = 0;
+      seniority = 'Entry-Level / Intern / Student (0-1 yr)';
     }
 
-    // --- Critical Red Flags ---
+    // --- Target Role Seniority Classification ---
+    const roleLower = role.toLowerCase();
+    let targetLevel = 2;
+    let roleCategory = 'Software Engineer';
+
+    if (/lead|principal|architect|staff|manager|director|head/i.test(roleLower)) {
+      targetLevel = 4;
+      roleCategory = 'Tech Lead / Principal';
+    } else if (/senior|sr\.|specialist/i.test(roleLower)) {
+      targetLevel = 3;
+      roleCategory = 'Senior Software Engineer';
+    } else if (/mid|experienced|level 2|ii/i.test(roleLower)) {
+      targetLevel = 2;
+      roleCategory = 'Mid-Level Engineer';
+    } else if (/junior|associate|jr\.|level 1|graduate/i.test(roleLower)) {
+      targetLevel = 1;
+      roleCategory = 'Junior Developer';
+    } else if (/intern|internship|trainee|student/i.test(roleLower)) {
+      targetLevel = 0;
+      roleCategory = 'Software Engineer Intern';
+    }
+
+    // --- Seniority Gap Calculation & Score Penalties ---
+    const seniorityGap = targetLevel - candidateLevel;
+    let finalExperienceScore = experienceScore;
+    let finalOverallScore = overallScore;
+    let executiveSummary: string;
     const redFlags: string[] = [];
+
+    if (seniorityGap >= 3) {
+      // Severe Mismatch (e.g., Intern applying for Tech Lead / Principal)
+      finalExperienceScore = Math.min(experienceScore, 24);
+      finalOverallScore = Math.min(overallScore, 38);
+      executiveSummary = `⚠️ Critical Seniority Mismatch: Target role is ${role} (${roleCategory}), but candidate profile demonstrates ${seniority}. A ${role} position strictly mandates 6-8+ years of production experience, high-scale system architecture, and engineering team leadership. An undergraduate or entry-level resume will be immediately filtered out by enterprise ATS systems. We strongly recommend targeting 'Software Engineer Intern' or 'Junior Associate' positions where this resume will be highly competitive.`;
+      redFlags.push(`CRITICAL SENIORITY DEFICIT: ${role} requires 6-8+ years and team management; candidate profile is ${seniority}.`);
+      redFlags.push(`LACK OF ARCHITECTURAL OWNERSHIP: Zero evidence of leading architectural roadmaps, sprint planning, hiring, or mentoring expected of a ${role}.`);
+    } else if (seniorityGap === 2) {
+      // Significant Mismatch (e.g., Intern applying for Senior, or Junior applying for Lead)
+      finalExperienceScore = Math.min(experienceScore, 36);
+      finalOverallScore = Math.min(overallScore, 48);
+      executiveSummary = `⚠️ Seniority Gap Identified: Applying for ${role} (${roleCategory}) with ${seniority}. While foundational technical skills are present, enterprise ATS filters for ${role} look for 4-6+ years of independent production delivery, system design depth, and ownership beyond early career tenure.`;
+      redFlags.push(`SENIORITY GAP: ${role} typically requires 4-6+ years production tenure; candidate shows ${seniority}.`);
+    } else if (seniorityGap === 1) {
+      // Slight stretch
+      finalOverallScore = Math.min(overallScore, 65);
+      executiveSummary = `Stretch Candidate for ${role}: Candidate has ${seniority}. Meets entry requirements but will face tough competition against candidates with 2-3+ years of dedicated commercial experience.`;
+      redFlags.push(`Experience Stretch: Target role (${role}) expects more commercial production history than currently shown.`);
+    } else {
+      // Good Alignment
+      if (finalOverallScore >= 85) {
+        executiveSummary = `Strong candidate profile for ${role} with excellent keyword alignment and quantified impact statements. Experience level (${seniority}) well matches role expectations.`;
+      } else if (finalOverallScore >= 70) {
+        executiveSummary = `Solid foundation for ${role} applications. Experience level (${seniority}) is appropriate. Resume covers core competencies but needs refinement in impact quantification and keyword optimization.`;
+      } else {
+        executiveSummary = `Resume requires enhancement for ${role} applications. Key gaps in industry keywords and structural clarity should be addressed to pass enterprise ATS filters.`;
+      }
+    }
+
+    // Standard Red Flags
     if (!hasMetrics) redFlags.push('No quantified achievements — ATS systems deprioritize resumes without measurable impact.');
     if (foundActionVerbs.length < 3) redFlags.push('Weak action verb usage — bullet points read as passive duty descriptions.');
     if (foundSections.length < 3) redFlags.push('Missing standard resume sections — ATS parsers expect Skills, Experience, Education headings.');
@@ -519,6 +700,9 @@ Return ONLY a valid JSON object with this exact schema:
 
     // --- Tailored Action Plan ---
     const actionPlan: string[] = [];
+    if (seniorityGap >= 2) {
+      actionPlan.push(`Re-align Target Role to 'Software Engineer Intern' or 'Junior Developer': Your current background (${seniority}) is primed for student/internship applications where it will achieve a 75-88%+ score, whereas applying for ${role} results in immediate ATS rejection.`);
+    }
     if (missingKeywords.length > 0) {
       actionPlan.push(`Add these critical ${role} keywords: ${missingKeywords.slice(0, 4).join(', ')}.`);
     }
@@ -550,21 +734,21 @@ Return ONLY a valid JSON object with this exact schema:
       'DevOps': ['AWS DevOps Professional', 'CKA (Certified Kubernetes Admin)', 'HashiCorp Terraform Associate'],
       'Data Science': ['TensorFlow Developer Certificate', 'AWS ML Specialty', 'Google Data Analytics Professional'],
     };
-    const roleLower = role.toLowerCase();
+    const roleLowerCert = role.toLowerCase();
     let recommendedCerts = certMap['Software Engineer'];
     for (const [key, certs] of Object.entries(certMap)) {
-      if (roleLower.includes(key.toLowerCase())) {
+      if (roleLowerCert.includes(key.toLowerCase())) {
         recommendedCerts = certs;
         break;
       }
     }
 
     return {
-      ats_compatibility_score: overallScore,
+      ats_compatibility_score: finalOverallScore,
       section_scores: {
         keyword_alignment: keywordScore,
         impact_and_metrics: impactScore,
-        experience_relevance: experienceScore,
+        experience_relevance: finalExperienceScore,
         clarity_and_structure: clarityScore,
       },
       detected_domain: `Technology — ${seniority}`,
@@ -578,7 +762,7 @@ Return ONLY a valid JSON object with this exact schema:
       bullet_point_optimizations: bulletOptimizations,
       tailored_action_plan: actionPlan,
       // Legacy compatibility
-      overallScore,
+      overallScore: finalOverallScore,
       atsScore: keywordScore,
       formattingScore: clarityScore,
       impactScore,
@@ -610,6 +794,7 @@ Return ONLY a valid JSON object with this exact schema:
       critical_red_flags: result.critical_red_flags,
       bullet_point_optimizations: result.bullet_point_optimizations,
       tailored_action_plan: result.tailored_action_plan,
+      analyzedRole: result.analyzedRole,
     };
 
     await prisma.resumeDiagnostic.create({

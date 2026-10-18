@@ -8,6 +8,7 @@ import uvicorn
 from services.gemini_service import GeminiService
 from services.ats_service import ATSService
 from services.rag_service import RAGService
+from services.gaze_service import GazeService
 
 app = FastAPI(
     title="AI Mentor - Python ML/AI Microservice with RAG",
@@ -50,6 +51,10 @@ class RAGSearchRequest(BaseModel):
     query: str
     top_k: Optional[int] = 5
     filter_topic: Optional[str] = None
+
+
+class GazeDetectionRequest(BaseModel):
+    image_base64: str
 
 
 # Startup Event — Initialize RAG
@@ -120,6 +125,7 @@ def evaluate_answer(payload: EvaluateAnswerRequest):
 
 
 @app.post("/api/ai/ats-diagnostic")
+@app.post("/api/ats-diagnostic")
 def ats_diagnostic(payload: ResumeTextRequest):
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Resume text cannot be empty")
@@ -130,7 +136,7 @@ def ats_diagnostic(payload: ResumeTextRequest):
         industry=payload.industry,
         job_description=payload.job_description,
     )
-    return {"success": True, "diagnostic": result}
+    return {"success": True, "diagnostic": result, "data": result}
 
 
 # --- RAG-specific endpoints ---
@@ -162,6 +168,16 @@ def rag_search(payload: RAGSearchRequest):
         "result_count": len(results),
         "results": results,
     }
+
+
+@app.post("/api/ai/gaze-detection")
+@app.post("/api/gaze-detection")
+def detect_gaze(payload: GazeDetectionRequest):
+    if not payload.image_base64 or not payload.image_base64.strip():
+        raise HTTPException(status_code=400, detail="Image data cannot be empty")
+
+    result = GazeService.analyze_frame_base64(payload.image_base64)
+    return result
 
 
 if __name__ == "__main__":

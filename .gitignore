@@ -48,4 +48,8 @@ Thumbs.db
 *.p8
 *.p12
 *.key
+
+# Uploads
+uploads/
+**/uploads/
 *.mobileprovision

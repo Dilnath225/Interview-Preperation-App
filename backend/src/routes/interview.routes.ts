@@ -7,6 +7,9 @@ import { uploadAudio } from '../middlewares/upload.middleware';
 
 const router = Router();
 
+// Public proctoring gaze detection endpoint (used by mobile/web during video stream)
+router.post('/gaze-detection', asyncHandler(InterviewController.detectGaze));
+
 router.use(authenticate);
 
 router.post('/start', asyncHandler(InterviewController.start));

@@ -49,40 +49,46 @@ class GeminiService:
         if history:
             history_block = f"\n\nRecent Conversation History:\n{history}"
 
-        # Step 2: Try Gemini LLM with RAG-augmented prompt
-        model = cls.get_model()
-        if model:
+        # Step 2: Build augmented prompt and generate response with Gemini
+        system_prompt = (
+            "You are \"AI Mentor\", an elite Principal Technical Interviewer and Career Coach "
+            "specializing in software engineering interviews, internships, and career development.\n\n"
+            "You have access to a curated knowledge base about interview preparation, technical topics, "
+            "coding patterns, resume optimization, and the Sri Lankan tech industry.\n\n"
+            "IMPORTANT INSTRUCTIONS:\n"
+            "- Use the knowledge base context below to provide accurate, specific, and actionable advice.\n"
+            "- If the knowledge base contains relevant information, USE IT in your response.\n"
+            "- Provide structured responses with markdown formatting, bullet points, and code examples where relevant.\n"
+            "- Be encouraging but honest about areas for improvement.\n"
+            "- Use the STAR method framework when discussing behavioral interview answers.\n"
+            "- Include specific metrics and examples wherever possible.\n"
+            "- You fluently understand English, Sinhala, and Singlish (Sinhala typed in English letters like 'Wdada oya', 'Katha karanna puluwanda'). "
+            "If the candidate messages in Sinhala or Singlish, answer naturally and warmly in friendly Sinhala or Singlish to help them feel comfortable!\n"
+        )
+
+        if rag_context:
+            system_prompt += f"\n--- RETRIEVED KNOWLEDGE BASE CONTEXT ---\n{rag_context}\n--- END CONTEXT ---\n"
+
+        if profile_info:
+            system_prompt += profile_info
+
+        if history_block:
+            system_prompt += history_block
+
+        system_prompt += f"\n\nCandidate's Question: {user_message}\n\nAI Mentor Response:"
+
+        candidate_models = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash"]
+        for model_name in candidate_models:
             try:
-                system_prompt = (
-                    "You are \"AI Mentor\", an elite Principal Technical Interviewer and Career Coach "
-                    "specializing in software engineering interviews, internships, and career development.\n\n"
-                    "You have access to a curated knowledge base about interview preparation, technical topics, "
-                    "coding patterns, resume optimization, and the Sri Lankan tech industry.\n\n"
-                    "IMPORTANT INSTRUCTIONS:\n"
-                    "- Use the knowledge base context below to provide accurate, specific, and actionable advice.\n"
-                    "- If the knowledge base contains relevant information, USE IT in your response.\n"
-                    "- Provide structured responses with markdown formatting, bullet points, and code examples where relevant.\n"
-                    "- Be encouraging but honest about areas for improvement.\n"
-                    "- Use the STAR method framework when discussing behavioral interview answers.\n"
-                    "- Include specific metrics and examples wherever possible.\n"
-                )
-
-                if rag_context:
-                    system_prompt += f"\n--- RETRIEVED KNOWLEDGE BASE CONTEXT ---\n{rag_context}\n--- END CONTEXT ---\n"
-
-                if profile_info:
-                    system_prompt += profile_info
-
-                if history_block:
-                    system_prompt += history_block
-
-                system_prompt += f"\n\nCandidate's Question: {user_message}\n\nAI Mentor Response:"
-
-                response = model.generate_content(system_prompt)
+                model = genai.GenerativeModel(model_name)
+                try:
+                    response = model.generate_content(system_prompt, request_options={"timeout": 25.0})
+                except TypeError:
+                    response = model.generate_content(system_prompt)
                 if response and response.text:
                     return response.text.strip()
             except Exception as e:
-                print(f"[GeminiService] Chat generation error: {e}")
+                print(f"[GeminiService] Chat model '{model_name}' error: {e}")
 
         # Step 3: Intelligent RAG-powered fallback (no LLM API needed)
         if rag_context:
@@ -273,9 +279,12 @@ class GeminiService:
                     "Return ONLY a valid JSON object with the following schema:\n"
                     "{\n"
                     '  "score": integer (0-100),\n'
+                    '  "status": "CORRECT" or "PARTIAL" or "WRONG",\n'
                     '  "clarityScore": integer (0-100),\n'
                     '  "technicalAccuracyScore": integer (0-100),\n'
                     '  "confidenceScore": integer (0-100),\n'
+                    '  "mistakes": ["specific mistake 1", "specific mistake 2"],\n'
+                    '  "missingPoints": ["crucial missing concept 1", "crucial missing concept 2"],\n'
                     '  "strengths": ["strength 1", "strength 2"],\n'
                     '  "improvements": ["actionable tip 1", "actionable tip 2"],\n'
                     '  "sampleIdealAnswer": "string",\n'

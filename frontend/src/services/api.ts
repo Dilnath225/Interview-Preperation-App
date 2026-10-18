@@ -34,9 +34,8 @@ const TOKEN_KEY = 'ai_mentor_auth_token';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 seconds (LLM calls need more time)
+  timeout: 45000, // 45 seconds (AI ATS evaluation & RAG need more time)
   headers: {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
   },
 });
@@ -88,6 +87,14 @@ axiosInstance.interceptors.request.use(async (config) => {
     if (config.data instanceof FormData) {
       if (config.headers) {
         delete (config.headers as any)['Content-Type'];
+        delete (config.headers as any)['content-type'];
+        if (Platform.OS !== 'web') {
+          (config.headers as any)['Content-Type'] = 'multipart/form-data';
+        }
+      }
+    } else if (config.data && typeof config.data === 'object') {
+      if (config.headers && !(config.headers as any)['Content-Type']) {
+        (config.headers as any)['Content-Type'] = 'application/json';
       }
     }
     let token = inMemoryToken;
@@ -179,11 +186,23 @@ class ApiClient {
 
   // --- Auth Endpoints ---
   async register(name: string, email: string, pass: string, targetRole?: string) {
-    return this.request<{ user: any; token: string }>('post', '/auth/register', { name, email, password: pass, targetRole });
+    return this.request<{ requireOtp?: boolean; email?: string; message?: string; user?: any; token?: string }>('post', '/auth/register', { name, email, password: pass, targetRole });
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    const res = await this.request<{ user: any; token: string }>('post', '/auth/verify-otp', { email, otp });
+    if (res.success && res.data?.token) {
+      await this.setToken(res.data.token);
+    }
+    return res;
+  }
+
+  async resendOtp(email: string) {
+    return this.request<{ success: boolean; message?: string }>('post', '/auth/resend-otp', { email });
   }
 
   async login(email: string, pass: string) {
-    const res = await this.request<{ user: any; token: string }>('post', '/auth/login', { email, password: pass });
+    const res = await this.request<{ user?: any; token?: string; requireOtp?: boolean; email?: string }>('post', '/auth/login', { email, password: pass });
     if (res.success && res.data?.token) {
       await this.setToken(res.data.token);
     }
@@ -199,8 +218,54 @@ class ApiClient {
     return this.request<{ user: any; stats: any; recentInterviews: any[] }>('get', '/user/profile');
   }
 
-  async updateProfile(data: { name?: string; targetRole?: string; skills?: string }) {
+  async updateProfile(data: {
+    name?: string;
+    targetRole?: string;
+    skills?: string;
+    bio?: string;
+    phone?: string;
+    experienceLevel?: string;
+    education?: string;
+    githubUrl?: string;
+    linkedinUrl?: string;
+    avatarUrl?: string;
+  }) {
     return this.request<{ user: any }>('put', '/user/profile', data);
+  }
+
+  async uploadAvatar(fileOrAsset: any) {
+    const formData = new FormData();
+    if (Platform.OS === 'web') {
+      if (fileOrAsset.file) {
+        formData.append('avatar', fileOrAsset.file, fileOrAsset.name || 'avatar.jpg');
+      } else if (fileOrAsset.uri) {
+        try {
+          const resp = await fetch(fileOrAsset.uri);
+          const blob = await resp.blob();
+          formData.append('avatar', blob, 'avatar.jpg');
+        } catch (e) {
+          console.warn('Failed to convert web avatar uri to blob:', e);
+        }
+      }
+    } else {
+      const filename = fileOrAsset.uri?.split('/').pop() || 'avatar.jpg';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      formData.append('avatar', {
+        uri: fileOrAsset.uri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
+    return this.request<{ avatarUrl: string }>('post', '/user/avatar', formData);
+  }
+
+  async changePassword(oldPassword: string, newPassword: string) {
+    return this.request<any>('post', '/user/change-password', { oldPassword, newPassword });
+  }
+
+  async deleteAccount() {
+    return this.request<any>('delete', '/user/profile');
   }
 
   // --- Mock Interview Endpoints ---
@@ -227,10 +292,13 @@ class ApiClient {
       }
     } else {
       // For React Native Native (iOS/Android)
+      const filename = audioUri.split('/').pop() || 'answer.m4a';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const mimeType = ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'audio/m4a';
       formData.append('audio', {
         uri: audioUri,
-        name: 'answer.m4a',
-        type: 'audio/m4a',
+        name: filename,
+        type: mimeType,
       } as any);
     }
 
@@ -248,24 +316,27 @@ class ApiClient {
         console.warn('Failed to fetch audio blob on web', err);
       }
     } else {
+      const filename = audioUri.split('/').pop() || 'answer.m4a';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const mimeType = ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'audio/m4a';
       formData.append('audio', {
         uri: audioUri,
-        name: 'answer.m4a',
-        type: 'audio/m4a',
+        name: filename,
+        type: mimeType,
       } as any);
     }
     return this.request<{ transcription: string }>('post', '/interviews/transcribe', formData);
   }
 
-  async completeInterview(sessionId: string) {
-    return this.request<any>('post', `/interviews/${sessionId}/complete`);
+  async completeInterview(sessionId: string, answers?: Array<{ questionId: string; userAnswer: string }>) {
+    return this.request<any>('post', `/interviews/${sessionId}/complete`, { answers });
   }
 
   async getInterviewHistory() {
     return this.request<{ sessions: any[] }>('get', '/interviews');
   }
 
-  // --- Coding Challenges ---
+  // --- Coding Challenges & Technical Assessment ---
   async getCodingChallenges(category?: string, difficulty?: string) {
     const query = new URLSearchParams();
     if (category) query.append('category', category);
@@ -273,8 +344,72 @@ class ApiClient {
     return this.request<{ challenges: any[] }>('get', `/coding?${query.toString()}`);
   }
 
-  async getChallengeBySlug(slug: string) {
-    return this.request<any>('get', `/coding/${slug}`);
+  async getChallengeBySlug(slug: string, language = 'javascript') {
+    return this.request<any>('get', `/coding/${slug}?language=${language}`);
+  }
+
+  async runSampleCode(challengeId: string, code: string, language = 'javascript') {
+    return this.request<any>('post', '/coding/run-sample', { challengeId, code, language });
+  }
+
+  async runAllCode(challengeId: string, code: string, language = 'javascript') {
+    return this.request<any>('post', '/coding/run-all', { challengeId, code, language });
+  }
+
+  async startTechnicalAssessment(
+    options: { count?: number; role?: string; level?: string; language?: string } | number = 5,
+    legacyLanguage = 'javascript'
+  ) {
+    let payload: { count: number; role?: string; level?: string; language: string };
+    if (typeof options === 'object') {
+      payload = {
+        count: options.count ?? 5,
+        role: options.role ?? 'Software Engineer',
+        level: options.level ?? 'Junior',
+        language: options.language ?? 'javascript',
+      };
+    } else {
+      payload = {
+        count: options,
+        role: 'Software Engineer',
+        level: 'Junior',
+        language: legacyLanguage,
+      };
+    }
+    return this.request<{
+      assessmentId: string;
+      questions: any[];
+      totalQuestions: number;
+      timeLimitMinutes: number;
+      language: string;
+      role?: string;
+      level?: string;
+    }>('post', '/coding/assessment/start', payload);
+  }
+
+  async submitTechnicalAssessment(
+    assessmentId: string,
+    answers: Array<{ challengeId: string; code: string; language?: string }>
+  ) {
+    return this.request<{
+      assessmentId: string;
+      overallScore: number;
+      passed: boolean;
+      grade: string;
+      feedback: {
+        overallScore: number;
+        passed: boolean;
+        grade: string;
+        summary: string;
+        strengths: string[];
+        actionableAdvice: string[];
+        questionBreakdown: any[];
+      };
+    }>('post', '/coding/assessment/submit', { assessmentId, answers });
+  }
+
+  async getTechnicalAssessment(assessmentId: string) {
+    return this.request<any>('get', `/coding/assessment/${assessmentId}`);
   }
 
   async submitCode(challengeId: string, code: string, language = 'typescript') {
@@ -294,20 +429,49 @@ class ApiClient {
   async getResumeHistory() {
     return this.request<{ resumes: any[] }>('get', '/resume/history');
   }
-  async uploadResume(file: any) {
+  async uploadResume(
+    file: any,
+    targetRole?: string,
+    industry?: string,
+    jobDescription?: string
+  ) {
     const formData = new FormData();
     
-    if (Platform.OS === 'web' && file.file) {
-      formData.append('resume', file.file);
+    if (Platform.OS === 'web') {
+      if (file.file) {
+        formData.append('resume', file.file, file.name || 'resume.pdf');
+      } else if (file.uri) {
+        try {
+          const resp = await fetch(file.uri);
+          const blob = await resp.blob();
+          formData.append('resume', blob, file.name || 'resume.pdf');
+        } catch (fetchErr) {
+          console.warn('Failed to convert web uri to blob:', fetchErr);
+          formData.append('resume', {
+            uri: file.uri,
+            name: file.name || 'resume.pdf',
+            type: file.mimeType || 'application/pdf',
+          } as any);
+        }
+      }
     } else {
       formData.append('resume', {
         uri: file.uri,
-        name: file.name,
+        name: file.name || 'resume.pdf',
         type: file.mimeType || 'application/pdf',
       } as any);
     }
+
+    if (targetRole) formData.append('targetRole', targetRole);
+    if (industry) formData.append('industry', industry);
+    if (jobDescription) formData.append('jobDescription', jobDescription);
     
     return this.request<any>('post', '/resume/analyze', formData);
+  }
+
+  // --- Proctoring & Gaze Detection ---
+  async detectGaze(imageBase64: string) {
+    return this.request<any>('post', '/interviews/gaze-detection', { image_base64: imageBase64 });
   }
 }
 

@@ -19,13 +19,23 @@ model User {
   readinessScore Int?               @default(65)
   skills         String?            @default("React, TypeScript, Node.js, SQL")
   avatarUrl      String?
+  isVerified     Boolean            @default(true)
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  bio            String?
+  phone          String?
+  experienceLevel String?           @default("Junior")
+  education      String?
+  githubUrl      String?
+  linkedinUrl    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
   interviews     InterviewSession[]
-  submissions    CodingSubmission[]
-  resumes        ResumeDiagnostic[]
-  chatMessages   ChatMessage[]
+  submissions          CodingSubmission[]
+  resumes              ResumeDiagnostic[]
+  chatMessages         ChatMessage[]
+  technicalAssessments TechnicalAssessment[]
 }
 
 model InterviewSession {
@@ -67,12 +77,35 @@ model CodingChallenge {
   difficulty     String             // Easy, Medium, Hard
   description    String
   starterCode    String
+  functionName   String?            @default("solution")
+  role           String?            @default("Software Engineer") // Software Engineer, DevOps, QA Engineer, All
+  level          String?            @default("Junior")           // Internship, Junior, Senior, All
   testCases      String             // JSON string of inputs and expected outputs
   hints          String?            // JSON string array
+  optimalCode    String?
+  timeComplexity String?
+  spaceComplexity String?
   acceptanceRate String             @default("72%")
   createdAt      DateTime           @default(now())
 
   submissions    CodingSubmission[]
+}
+
+model TechnicalAssessment {
+  id           String   @id @default(uuid())
+  userId       String
+  role         String   @default("Software Engineer")
+  difficulty   String   @default("Mixed")
+  status       String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  totalScore   Int      @default(0)
+  passed       Boolean  @default(false)
+  feedback     String?  // JSON AI evaluation report
+  questionIds  String   // JSON array of 5 CodingChallenge IDs
+  userAnswers  String?  // JSON record of user answers and per-question test results
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CodingSubmission {

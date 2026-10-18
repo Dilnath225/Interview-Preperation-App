@@ -84,9 +84,19 @@ export default function AIChatScreen() {
       // Call LLM through backend / ML microservice
       const res = await api.sendChatMessage(textToSend.trim(), 'INTERVIEW_COACH');
 
-      let replyText = "I've analyzed your question. Focus on structured problem decomposition and quantifying your engineering results!";
+      let replyText = "";
       if (res.success && res.data?.message?.message) {
         replyText = res.data.message.message;
+      } else if (!res.success) {
+        if (res.message?.includes('401') || res.message?.toLowerCase().includes('unauthorized') || res.message?.toLowerCase().includes('token')) {
+          replyText = "⚠️ Your login session has expired. Please sign in again from your Profile to chat with AI Mentor.";
+        } else if (res.message?.includes('timed out') || res.message?.toLowerCase().includes('network')) {
+          replyText = `⚠️ Connection issue: ${res.message}. Please check that your server is running.`;
+        } else {
+          replyText = res.message || "I'm having a brief issue connecting to the AI brain. Please try sending your message again in a moment.";
+        }
+      } else {
+        replyText = "I've analyzed your question. Focus on structured problem decomposition and quantifying your engineering results!";
       }
 
       const aiReply: MessageItem = {

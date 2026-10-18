@@ -10,9 +10,11 @@
     "expo": "^57.0.0",
     "expo-av": "~16.0.8",
     "expo-camera": "~57.0.6",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.20",
     "expo-document-picker": "~57.0.3",
     "expo-font": "~57.0.4",
+    "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.24",
@@ -40,7 +42,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:web": "expo export -p web"
   },
   "private": true
 }

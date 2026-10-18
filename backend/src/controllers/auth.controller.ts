@@ -18,7 +18,27 @@ export class AuthController {
     }
 
     const result = await AuthService.register({ name, email, password, targetRole });
-    return sendResponse(res, 201, result, 'Registration successful');
+    return sendResponse(res, 201, result, result.message || 'Verification code sent to your email.');
+  };
+
+  static verifyOtp = async (req: Request, res: Response) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      throw ApiError.badRequest('Email and 6-digit OTP code are required.');
+    }
+
+    const result = await AuthService.verifyOtp(email, otp);
+    return sendResponse(res, 200, result, result.message || 'Email verified successfully.');
+  };
+
+  static resendOtp = async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) {
+      throw ApiError.badRequest('Email is required.');
+    }
+
+    const result = await AuthService.resendOtp(email);
+    return sendResponse(res, 200, result, result.message || 'New OTP sent to email.');
   };
 
   static login = async (req: Request, res: Response) => {
@@ -29,7 +49,7 @@ export class AuthController {
     }
 
     const result = await AuthService.login({ email, password });
-    return sendResponse(res, 200, result, 'Login successful');
+    return sendResponse(res, 200, result, result.message || 'Login successful');
   };
 
   static me = async (req: AuthRequest, res: Response) => {
@@ -47,6 +67,13 @@ export class AuthController {
         readinessScore: true,
         skills: true,
         avatarUrl: true,
+        bio: true,
+        phone: true,
+        experienceLevel: true,
+        education: true,
+        githubUrl: true,
+        linkedinUrl: true,
+        isVerified: true,
         createdAt: true,
       },
     });

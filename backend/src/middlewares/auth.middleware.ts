@@ -29,13 +29,15 @@ export const authenticate = async (
       throw ApiError.unauthorized('Invalid authorization format.');
     }
 
-    const decoded = jwt.verify(token, ENV.JWT_SECRET) as {
-      id: string;
-      email: string;
-    };
+    const decoded = jwt.verify(token, ENV.JWT_SECRET) as any;
+    const userId = decoded?.id || decoded?.userId;
+
+    if (!userId) {
+      throw ApiError.unauthorized('Invalid authorization token format.');
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: userId },
       select: {
         id: true,
         email: true,

@@ -1,5 +1,5 @@
 /**
- * AI Mentor - Settings Screen
+ * AI Mentor - Settings Screen (Connected with AuthContext)
  */
 import React, { useState } from 'react';
 import {
@@ -9,19 +9,42 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
+import { useAuth } from '../src/context/AuthContext';
+import { API_BASE_URL } from '../src/services/api';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(true);
 
   const handleLogout = () => {
-    router.replace('/sign-in');
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/sign-in');
+        },
+      },
+    ]);
+  };
+
+  const getAvatarSource = () => {
+    const raw = user?.avatarUrl;
+    if (!raw) return null;
+    if (raw.startsWith('http')) return { uri: raw };
+    const base = API_BASE_URL.replace(/\/api$/, '');
+    return { uri: `${base}${raw}` };
   };
 
   return (
@@ -33,16 +56,27 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* User Profile Card */}
-        <View style={styles.userCard}>
+        <TouchableOpacity
+          style={styles.userCard}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.8}
+        >
           <View style={styles.avatarBorder}>
-            <Ionicons name="person" size={24} color={Colors.primary} />
+            {getAvatarSource() ? (
+              <Image source={getAvatarSource()!} style={styles.avatarImg} />
+            ) : (
+              <Ionicons name="person" size={24} color={Colors.primary} />
+            )}
           </View>
 
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>John Doe</Text>
-            <Text style={styles.userRole}>Senior Product Designer</Text>
+            <Text style={styles.userName}>{user?.name || 'Candidate'}</Text>
+            <Text style={styles.userRole}>{user?.targetRole || 'Full Stack Developer'}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
           </View>
-        </View>
+
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
 
         {/* Section: Appearance */}
         <Text style={styles.sectionHeader}>Appearance</Text>
@@ -79,7 +113,11 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>Security</Text>
 
         <View style={styles.settingsGroup}>
-          <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
             <View style={styles.settingLabelRow}>
               <Ionicons name="lock-closed-outline" size={20} color={Colors.primary} />
               <Text style={styles.settingLabelText}>Change Password</Text>
@@ -89,10 +127,14 @@ export default function SettingsScreen() {
 
           <View style={styles.divider} />
 
-          <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
             <View style={styles.settingLabelRow}>
-              <Ionicons name="options-outline" size={20} color={Colors.primary} />
-              <Text style={styles.settingLabelText}>App Preferences</Text>
+              <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+              <Text style={styles.settingLabelText}>Manage Candidate Profile</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
           </TouchableOpacity>
@@ -105,7 +147,7 @@ export default function SettingsScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="log-out-outline" size={20} color={Colors.primary} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -141,6 +183,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
   },
   userInfo: {
     flex: 1,
@@ -154,6 +201,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.caption,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  userEmail: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
   sectionHeader: {
     fontSize: Typography.h5,

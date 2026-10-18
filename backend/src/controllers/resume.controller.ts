@@ -16,7 +16,17 @@ export class ResumeController {
       select: { targetRole: true },
     });
 
-    const result = await ResumeService.analyzeResume(req.user.id, req.file, user?.targetRole);
+    const targetRole = (req.body.targetRole as string) || user?.targetRole || 'Software Engineer';
+    const industry = (req.body.industry as string) || undefined;
+    const jobDescription = (req.body.jobDescription as string) || undefined;
+
+    const result = await ResumeService.analyzeResume(
+      req.user.id,
+      req.file,
+      targetRole,
+      industry,
+      jobDescription
+    );
     return sendResponse(res, 200, result, 'Resume ATS analysis completed');
   };
 

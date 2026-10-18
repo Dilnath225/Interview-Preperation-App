@@ -73,3 +73,41 @@ export const uploadAudio = multer({
     fileSize: 15 * 1024 * 1024, // 15MB limit for audio
   },
 });
+
+const avatarDir = path.join(uploadDir, 'avatars');
+if (!fs.existsSync(avatarDir)) {
+  fs.mkdirSync(avatarDir, { recursive: true });
+}
+
+const avatarFilter = (
+  req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedExtensions.includes(ext) || file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new ApiError(400, 'Invalid file type. Only image files (PNG, JPG, JPEG, WEBP) are supported for avatars.'));
+  }
+};
+
+export const uploadAvatar = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, avatarDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `avatar-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: avatarFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for high-res images
+  },
+});
+

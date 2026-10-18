@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-mentor-config
+  namespace: default
+data:
+  NODE_ENV: "production"
+  PORT: "5000"
+  ML_SERVICE_URL: "http://ai-mentor-ml:8001"
+  CLIENT_URL: "http://localhost:8080"
+  DATABASE_URL: "postgresql://postgres:postgrespassword@ai-mentor-postgres:5432/ai_mentor_db?schema=public"
+  CHROMADB_HOST: "ai-mentor-chromadb"
+  CHROMADB_PORT: "8000"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-mentor-secrets
+  namespace: default
+type: Opaque
+stringData:
+  JWT_SECRET: "ai_mentor_super_secret_jwt_key_2026_lk"
+  GEMINI_API_KEY: ""
+  POSTGRES_PASSWORD: "postgrespassword"
+  SMTP_USER: "sunerarathnayaka@gmail.com"
+  SMTP_PASS: "hytgajtzfuzlhuoj"

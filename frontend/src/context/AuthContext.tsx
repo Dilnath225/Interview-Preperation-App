@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SafeStorage } from '../utils/storage';
 import { api } from '../services/api';
 
-interface UserData {
+export interface UserData {
   id: string;
   name: string;
   email: string;
@@ -10,6 +10,13 @@ interface UserData {
   readinessScore?: number | null;
   skills?: string | null;
   avatarUrl?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  experienceLevel?: string | null;
+  education?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
+  isVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -17,8 +24,10 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  register: (name: string, email: string, password: string, targetRole?: string) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; requireOtp?: boolean; email?: string; message?: string }>;
+  register: (name: string, email: string, password: string, targetRole?: string) => Promise<{ success: boolean; requireOtp?: boolean; email?: string; message?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
+  resendOtp: (email: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (data: Partial<UserData>) => void;
@@ -31,6 +40,8 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: async () => ({ success: false }),
   register: async () => ({ success: false }),
+  verifyOtp: async () => ({ success: false }),
+  resendOtp: async () => ({ success: false }),
   logout: async () => {},
   refreshUser: async () => {},
   updateUser: () => {},
@@ -59,20 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(JSON.parse(storedUser));
 
         // Verify token validity in the background (non-blocking)
-        // so the app doesn't hang if the backend is slow or unreachable
         api.getMe().then(async (res) => {
           if (res.success && res.data?.user) {
             setUser(res.data.user);
             await SafeStorage.setItem('auth_user', JSON.stringify(res.data.user));
           } else {
-            // Token expired or invalid — clear session
             console.warn('[Auth] Token validation failed, clearing session');
             await clearSession();
           }
         }).catch(async (err) => {
           console.warn('[Auth] Background token validation error:', err);
-          // Don't clear session on network errors (timeout, no connection)
-          // so the user can still use cached data offline
         });
       }
     } catch (err) {
@@ -94,29 +101,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await api.login(email, password);
     if (res.success && res.data) {
+      if (res.data.requireOtp) {
+        return {
+          success: false,
+          requireOtp: true,
+          email: res.data.email || email,
+          message: res.message || 'Please verify your email with the 6-digit code.',
+        };
+      }
       const { user: userData, token: authToken } = res.data;
-      setUser(userData);
-      setToken(authToken);
-      await api.setToken(authToken);
-      await SafeStorage.setItem('auth_token', authToken);
-      await SafeStorage.setItem('auth_user', JSON.stringify(userData));
-      return { success: true };
+      if (userData && authToken) {
+        setUser(userData);
+        setToken(authToken);
+        await api.setToken(authToken);
+        await SafeStorage.setItem('auth_token', authToken);
+        await SafeStorage.setItem('auth_user', JSON.stringify(userData));
+        return { success: true };
+      }
     }
-    return { success: false, message: res.message || 'Login failed' };
+    return { success: false, message: res.message || 'Invalid email or password' };
   };
 
   const register = async (name: string, email: string, password: string, targetRole?: string) => {
     const res = await api.register(name, email, password, targetRole);
-    if (res.success && res.data) {
+    if (res.success) {
+      if (res.data?.requireOtp) {
+        return {
+          success: true,
+          requireOtp: true,
+          email: res.data.email || email,
+          message: res.message || 'Verification code sent to your email.',
+        };
+      }
+      // If direct registration (fallback)
+      if (res.data?.user && res.data?.token) {
+        setUser(res.data.user);
+        setToken(res.data.token);
+        await api.setToken(res.data.token);
+        await SafeStorage.setItem('auth_token', res.data.token);
+        await SafeStorage.setItem('auth_user', JSON.stringify(res.data.user));
+        return { success: true };
+      }
+      return { success: true, requireOtp: true, email };
+    }
+    return { success: false, message: res.message || 'Registration failed' };
+  };
+
+  const verifyOtp = async (email: string, otp: string) => {
+    const res = await api.verifyOtp(email, otp);
+    if (res.success && res.data?.token && res.data?.user) {
       const { user: userData, token: authToken } = res.data;
       setUser(userData);
       setToken(authToken);
       await api.setToken(authToken);
       await SafeStorage.setItem('auth_token', authToken);
       await SafeStorage.setItem('auth_user', JSON.stringify(userData));
-      return { success: true };
+      return { success: true, message: res.message || 'Verification successful' };
     }
-    return { success: false, message: res.message || 'Registration failed' };
+    return { success: false, message: res.message || 'Verification code failed' };
+  };
+
+  const resendOtp = async (email: string) => {
+    const res = await api.resendOtp(email);
+    return {
+      success: res.success,
+      message: res.message || (res.success ? 'New code dispatched to email' : 'Could not resend code'),
+    };
   };
 
   const logout = async () => {
@@ -132,7 +182,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUser = (data: Partial<UserData>) => {
-    setUser((prev) => (prev ? { ...prev, ...data } : null));
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...data };
+      SafeStorage.setItem('auth_user', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
   };
 
   return (
@@ -144,6 +199,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!token && !!user,
         login,
         register,
+        verifyOtp,
+        resendOtp,
         logout,
         refreshUser,
         updateUser,
