@@ -3,8 +3,19 @@ import Constants from 'expo-constants';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+const CURRENT_LAN_IP = '192.168.1.178';
+
 const getBaseUrl = (): string => {
-  if (Platform.OS === 'web') return 'http://localhost:5000/api';
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:5000/api';
+      }
+      return `http://${host}:5000/api`;
+    }
+    return `http://${CURRENT_LAN_IP}:5000/api`;
+  }
 
   const candidates = [
     Constants.expoConfig?.hostUri,
@@ -24,8 +35,8 @@ const getBaseUrl = (): string => {
     }
   }
 
-  // Fallback to development host Wi-Fi LAN IP
-  return 'http://192.168.1.36:5000/api';
+  // Fallback to active local network IP
+  return `http://${CURRENT_LAN_IP}:5000/api`;
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -37,6 +48,7 @@ const axiosInstance = axios.create({
   timeout: 45000, // 45 seconds (AI ATS evaluation & RAG need more time)
   headers: {
     Accept: 'application/json',
+    'Bypass-Tunnel-Reminder': 'true',
   },
 });
 

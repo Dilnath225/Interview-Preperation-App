@@ -18,6 +18,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import {
   TECH_COMPANIES,
   JOB_OPENINGS,
@@ -30,6 +32,8 @@ type ActiveTab = 'all' | 'srilanka' | 'global' | 'jobs' | 'categories';
 export default function TargetCompaniesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDesktop, isTablet, isWide } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,23 +116,26 @@ export default function TargetCompaniesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Top Header matching app standards */}
-      <View style={styles.topNavBar}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.topNavTitle}>Target Top Companies</Text>
-        <View style={{ width: 36 }} />
+      <View style={styles.topNavBarWrapper}>
+        <View style={styles.topNavBar}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.topNavTitle}>Target Top Companies</Text>
+          <View style={{ width: 36 }} />
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Elite Preparation Hero Header */}
+        <ResponsiveContainer>
+          {/* Elite Preparation Hero Header */}
         <View style={styles.heroSection}>
           <View style={styles.eliteBadgeRow}>
             <Text style={styles.eliteBadgeText}>ELITE PREPARATION</Text>
@@ -443,7 +450,7 @@ export default function TargetCompaniesScreen() {
           /* ========================================================
               VIEW 3: TARGET TOP COMPANIES (Matches Screenshot)
           ======================================================== */
-          <View style={styles.companiesListContainer}>
+          <View style={[styles.companiesListContainer, isLargeScreen && styles.companiesListDesktopGrid]}>
             {/* Company Cards Loop */}
             {filteredCompanies.map((company) => {
               // Special Netflix styling
@@ -451,7 +458,10 @@ export default function TargetCompaniesScreen() {
                 return (
                   <TouchableOpacity
                     key={company.id}
-                    style={styles.netflixCard}
+                    style={[
+                      styles.netflixCard,
+                      isLargeScreen && (isWide ? styles.companyCardWide : styles.companyCardDesktop),
+                    ]}
                     onPress={() => setSelectedCompany(company)}
                     activeOpacity={0.85}
                   >
@@ -481,7 +491,10 @@ export default function TargetCompaniesScreen() {
               return (
                 <TouchableOpacity
                   key={company.id}
-                  style={styles.companyCard}
+                  style={[
+                    styles.companyCard,
+                    isLargeScreen && (isWide ? styles.companyCardWide : styles.companyCardDesktop),
+                  ]}
                   onPress={() => setSelectedCompany(company)}
                   activeOpacity={0.85}
                 >
@@ -575,6 +588,7 @@ export default function TargetCompaniesScreen() {
             </View>
           </View>
         )}
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* ========================================================
@@ -888,15 +902,21 @@ export default function TargetCompaniesScreen() {
 }
 
 const styles = StyleSheet.create({
+  topNavBarWrapper: {
+    width: '100%',
+    backgroundColor: '#070C12',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A2433',
+  },
   topNavBar: {
+    maxWidth: 1280,
+    width: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#121D2C',
-    backgroundColor: '#070C12',
   },
   backButton: {
     width: 36,
@@ -905,6 +925,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0E1724',
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   topNavTitle: {
     fontSize: 17,
@@ -916,7 +937,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#070C12',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxxl,
   },
 
@@ -1011,6 +1031,12 @@ const styles = StyleSheet.create({
   // Companies List & Cards
   companiesListContainer: {
     gap: Spacing.md,
+    width: '100%',
+  },
+  companiesListDesktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
   },
   companyCard: {
     backgroundColor: '#0E1724',
@@ -1022,6 +1048,34 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  companyCardDesktop: {
+    width: '48.8%',
+    marginBottom: 0,
+    minHeight: 180,
+  },
+  companyCardWide: {
+    width: '31.8%',
+    marginBottom: 0,
+    minHeight: 180,
+  },
+  jobsListDesktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    width: '100%',
+  },
+  jobCardDesktop: {
+    width: '48.8%',
+    marginBottom: 0,
+  },
+  categoriesDesktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    width: '100%',
   },
   companyCardTop: {
     flexDirection: 'row',

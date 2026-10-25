@@ -15,6 +15,9 @@ import rateLimit from 'express-rate-limit';
 
 const app: Application = express();
 
+// Trust reverse proxy (Cloudflare Tunnel, Nginx, Kubernetes ingress)
+app.set('trust proxy', 1);
+
 // Middlewares
 app.use(
   cors({
@@ -31,6 +34,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3000, // Generous limit for real-time interview sessions
   skip: (req: Request) => req.path.includes('gaze-detection'),
+  validate: { xForwardedForHeader: false },
   message: 'Too many requests from this IP, please try again after 15 minutes',
 });
 app.use('/api', limiter);

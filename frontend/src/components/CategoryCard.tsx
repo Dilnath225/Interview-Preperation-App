@@ -1,9 +1,10 @@
 /**
  * AI Mentor - CategoryCard Component
  * Displays interview categories with icon, title, description, and optional badges
+ * Web responsive cursor & styling
  */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, BorderRadius, Spacing } from '../constants/theme';
 
@@ -15,6 +16,7 @@ interface CategoryCardProps {
   iconBgColor?: string;
   badge?: string;
   fullWidth?: boolean;
+  style?: StyleProp<ViewStyle>;
   onPress: () => void;
 }
 
@@ -26,13 +28,18 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   iconBgColor = 'rgba(0, 245, 212, 0.1)',
   badge,
   fullWidth = true,
+  style,
   onPress,
 }) => {
   return (
     <TouchableOpacity
       activeOpacity={0.75}
       onPress={onPress}
-      style={[styles.card, fullWidth ? styles.fullWidth : styles.halfWidth]}
+      style={[
+        styles.card,
+        fullWidth ? styles.fullWidth : styles.halfWidth,
+        style,
+      ]}
     >
       <View style={styles.topRow}>
         <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
@@ -58,12 +65,13 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: '#101824',
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#1C293A',
     marginBottom: Spacing.md,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   fullWidth: {
     width: '100%',

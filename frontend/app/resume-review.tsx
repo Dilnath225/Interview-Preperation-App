@@ -25,6 +25,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/them
 import { Header } from '../src/components/Header';
 import { ProgressRing } from '../src/components/ProgressRing';
 import { Button } from '../src/components/Button';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import { api } from '../src/services/api';
 import { useNotifications } from '../src/context';
 
@@ -209,7 +211,534 @@ export default function ResumeReviewScreen() {
     return { label: 'CRITICAL FIX (<45)', color: Colors.error, icon: 'close-circle' };
   };
 
+  const { isDesktop, isTablet } = useResponsive();
   const status = getATSStatus(overallScore);
+
+  const renderConfigCard = () => (
+    <View style={styles.configCard}>
+      <TouchableOpacity
+        style={styles.configCardHeader}
+        onPress={() => setShowConfig(!showConfig)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.configTitleRow}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="briefcase" size={16} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.configTitle}>Target Evaluation Rubric</Text>
+            <Text style={styles.configSubtitle}>
+              {activeRole} • {INDUSTRIES.find(i => i.value === selectedIndustry)?.label || 'Technology'}
+              {jobDescription.trim() ? ' • Target JD Attached' : ''}
+            </Text>
+          </View>
+          <Ionicons
+            name={showConfig ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.textMuted}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {showConfig && (
+        <View style={styles.configBody}>
+          {/* Target Role Selector */}
+          <Text style={styles.inputLabel}>TARGET JOB ROLE</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipRow}
+          >
+            {POPULAR_ROLES.map((r) => {
+              const isSelected = targetRole === r && !customRole;
+              return (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.chip, isSelected && styles.chipActive]}
+                  onPress={() => {
+                    setTargetRole(r);
+                    setCustomRole('');
+                  }}
+                >
+                  <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                    {r}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Custom Role Input */}
+          <View style={styles.customRoleInputRow}>
+            <Ionicons name="pencil-outline" size={16} color={Colors.textMuted} />
+            <TextInput
+              style={styles.customRoleInput}
+              placeholder="Or type custom role (e.g., Staff ML Engineer)..."
+              placeholderTextColor={Colors.textMuted}
+              value={customRole}
+              onChangeText={(text) => setCustomRole(text)}
+            />
+          </View>
+
+          {/* Industry Selector */}
+          <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>INDUSTRY DOMAIN</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipRow}
+          >
+            {INDUSTRIES.map((ind) => {
+              const isSelected = selectedIndustry === ind.value;
+              return (
+                <TouchableOpacity
+                  key={ind.value}
+                  style={[styles.chip, isSelected && styles.chipActive]}
+                  onPress={() => setSelectedIndustry(ind.value)}
+                >
+                  <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                    {ind.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Optional Job Description Accordion */}
+          <TouchableOpacity
+            style={styles.jdToggleRow}
+            onPress={() => setShowJdInput(!showJdInput)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={showJdInput ? 'document-text' : 'document-text-outline'}
+              size={16}
+              color={jobDescription.trim() ? Colors.primary : Colors.textMuted}
+            />
+            <Text style={styles.jdToggleText}>
+              {showJdInput ? 'Hide Target Job Description' : 'Add Target Job Description (Optional)'}
+            </Text>
+            {jobDescription.trim() && (
+              <View style={styles.jdActivePill}>
+                <Text style={styles.jdActivePillText}>Active</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {showJdInput && (
+            <View style={styles.jdInputBox}>
+              <TextInput
+                style={styles.jdTextInput}
+                placeholder="Paste job posting text here to evaluate resume keywords and competencies against the exact requirements..."
+                placeholderTextColor={Colors.textMuted}
+                value={jobDescription}
+                onChangeText={setJobDescription}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+              {jobDescription.length > 0 && (
+                <View style={styles.jdCharCountRow}>
+                  <Text style={styles.jdCharCountText}>{jobDescription.length} characters</Text>
+                  <TouchableOpacity onPress={() => setJobDescription('')}>
+                    <Text style={styles.jdClearText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+
+  const renderUploadArea = () => (
+    <View style={styles.uploadArea}>
+      <View style={styles.uploadIconCircle}>
+        <Ionicons name="cloud-upload" size={28} color={Colors.primary} />
+      </View>
+      <Text style={styles.uploadTitle}>Upload Resume for ATS Diagnostic</Text>
+      <Text style={styles.uploadSubtitle}>
+        OCR Noise-tolerant PDF & Word parsing with RAG benchmarks
+      </Text>
+
+      <View style={styles.targetContextRow}>
+        <View style={styles.contextTag}>
+          <Ionicons name="person" size={12} color={Colors.primary} />
+          <Text style={styles.contextTagText}>{activeRole}</Text>
+        </View>
+        <View style={[styles.contextTag, { borderColor: 'rgba(68, 138, 255, 0.4)' }]}>
+          <Ionicons name="business" size={12} color={Colors.info} />
+          <Text style={[styles.contextTagText, { color: Colors.info }]}>
+            {INDUSTRIES.find(i => i.value === selectedIndustry)?.label || 'Technology'}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.browseButton}
+        onPress={handleUpload}
+        activeOpacity={0.8}
+        disabled={analyzing}
+      >
+        {analyzing ? (
+          <View style={styles.analyzingRow}>
+            <ActivityIndicator size="small" color="#0B131E" />
+            <Text style={styles.analyzingText}>{analysisStep}</Text>
+          </View>
+        ) : (
+          <View style={styles.buttonInnerRow}>
+            <Ionicons name="document-attach-outline" size={18} color="#0B131E" />
+            <Text style={styles.browseButtonText}>Select Resume File (PDF)</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderScorecard = () => {
+    if (!result) return null;
+    return (
+      <View style={styles.scorecardCard}>
+        <View style={styles.scorecardTop}>
+          <View style={styles.scoreRingWrap}>
+            <ProgressRing
+              progress={overallScore}
+              size={94}
+              strokeWidth={8}
+              color={status.color}
+              label=""
+            >
+              <View style={styles.scoreInsideText}>
+                <Text style={[styles.scoreNumber, { color: status.color }]}>{overallScore}</Text>
+                <Text style={styles.scoreLabel}>/ 100</Text>
+              </View>
+            </ProgressRing>
+          </View>
+
+          <View style={styles.scoreMetaColumn}>
+            <View style={[styles.statusBadge, { backgroundColor: `${status.color}20`, borderColor: `${status.color}50` }]}>
+              <Ionicons name={status.icon as any} size={14} color={status.color} />
+              <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.label}</Text>
+            </View>
+
+            <Text style={styles.roleAnalyzedText}>Target: {result.analyzedRole || activeRole}</Text>
+
+            {result.detected_domain && (
+              <View style={styles.domainPill}>
+                <Ionicons name="shield-checkmark-outline" size={12} color={Colors.primary} />
+                <Text style={styles.domainPillText}>{result.detected_domain}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Executive Assessment Verdict */}
+        {result.executive_summary && (
+          <View style={styles.executiveSummaryBox}>
+            <View style={styles.execHeaderRow}>
+              <Ionicons name="chatbox-ellipses-outline" size={16} color={Colors.primary} />
+              <Text style={styles.execHeaderTitle}>Executive Strategist Verdict</Text>
+            </View>
+            <Text style={styles.execSummaryContent}>{result.executive_summary}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderRubricCard = () => {
+    if (!result) return null;
+    return (
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionIconCircle}>
+            <Ionicons name="analytics" size={16} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionHeaderTitle}>4-Dimension ATS Rubric</Text>
+            <Text style={styles.sectionHeaderSubtitle}>Weighted section scores out of 100% total</Text>
+          </View>
+        </View>
+
+        <View style={styles.scoreBarsList}>
+          {renderScoreItem(
+            'Keyword Alignment & ATS Parsability',
+            '40% Weight',
+            result.section_scores?.keyword_alignment ?? result.atsScore ?? 0,
+            'key-outline',
+            'Core skills, technical tools, domain methodologies'
+          )}
+          {renderScoreItem(
+            'Quantifiable Impact & Metrics',
+            '25% Weight',
+            result.section_scores?.impact_and_metrics ?? result.impactScore ?? 0,
+            'trending-up-outline',
+            "Adoption of Google's XYZ impact formula with numbers"
+          )}
+          {renderScoreItem(
+            'Role & Experience Relevance',
+            '20% Weight',
+            result.section_scores?.experience_relevance ?? 75,
+            'briefcase-outline',
+            'Seniority depth, career progression, domain competencies'
+          )}
+          {renderScoreItem(
+            'Formatting & Structure Index',
+            '15% Weight',
+            result.section_scores?.clarity_and_structure ?? result.formattingScore ?? 0,
+            'list-outline',
+            'Clear hierarchy, standard headings, OCR parsability'
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderRedFlags = () => {
+    if (!result?.critical_red_flags || result.critical_red_flags.length === 0) return null;
+    return (
+      <View style={styles.collapsibleWrap}>
+        <TouchableOpacity
+          style={[styles.collapsibleHeader, { borderColor: 'rgba(255, 82, 82, 0.3)', backgroundColor: '#181215' }]}
+          onPress={() => toggleSection('red_flags')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.collapsibleLeft}>
+            <Ionicons name="warning-outline" size={20} color={Colors.error} />
+            <Text style={[styles.collapsibleTitle, { color: Colors.error }]}>Critical Red Flags</Text>
+          </View>
+          <View style={styles.badgeCount}>
+            <Text style={styles.badgeCountText}>{result.critical_red_flags.length} Dealbreakers</Text>
+          </View>
+          <Ionicons
+            name={expandedSection === 'red_flags' ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.error}
+          />
+        </TouchableOpacity>
+
+        {expandedSection === 'red_flags' && (
+          <View style={styles.expandedContent}>
+            {result.critical_red_flags.map((flag: string, idx: number) => (
+              <View key={idx} style={styles.redFlagItem}>
+                <Ionicons name="alert-circle" size={16} color={Colors.error} style={{ marginTop: 2 }} />
+                <Text style={styles.redFlagText}>{flag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderKeywordAnalysis = () => {
+    if (!result) return null;
+    return (
+      <View style={styles.collapsibleWrap}>
+        <TouchableOpacity
+          style={styles.collapsibleHeader}
+          onPress={() => toggleSection('keywords')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.collapsibleLeft}>
+            <Ionicons name="search-outline" size={20} color={Colors.primary} />
+            <Text style={styles.collapsibleTitle}>Keyword & Competency Deep-Dive</Text>
+          </View>
+          <Ionicons
+            name={expandedSection === 'keywords' ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        {expandedSection === 'keywords' && (
+          <View style={styles.expandedContent}>
+            {/* Matched Keywords */}
+            <Text style={styles.subSectionTitle}>
+              MATCHED ATS KEYWORDS ({result.keyword_analysis?.matched_keywords?.length || result.extractedKeywords?.length || 0})
+            </Text>
+            <View style={styles.keywordsRow}>
+              {(result.keyword_analysis?.matched_keywords || result.extractedKeywords || []).map(
+                (kw: string, idx: number) => (
+                  <View key={idx} style={styles.kwBadgeSuccess}>
+                    <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
+                    <Text style={styles.kwTextSuccess}>{kw}</Text>
+                  </View>
+                )
+              )}
+            </View>
+
+            {/* Missing Critical Keywords */}
+            <Text style={[styles.subSectionTitle, { marginTop: Spacing.md }]}>
+              CRITICAL MISSING KEYWORDS (IMMEDIATE ATS FILTERS)
+            </Text>
+            <View style={styles.keywordsRow}>
+              {(result.keyword_analysis?.missing_critical_keywords || result.missingKeywords || []).map(
+                (kw: string, idx: number) => (
+                  <View key={idx} style={styles.kwBadge}>
+                    <Ionicons name="add-circle-outline" size={12} color={Colors.error} />
+                    <Text style={styles.kwText}>{kw}</Text>
+                  </View>
+                )
+              )}
+            </View>
+
+            {/* Recommended Certifications & Tools */}
+            {result.keyword_analysis?.recommended_certifications_or_tools &&
+              result.keyword_analysis.recommended_certifications_or_tools.length > 0 && (
+                <>
+                  <Text style={[styles.subSectionTitle, { marginTop: Spacing.md }]}>
+                    RECOMMENDED CREDENTIALS & CERTIFICATIONS
+                  </Text>
+                  {result.keyword_analysis.recommended_certifications_or_tools.map(
+                    (cert: string, idx: number) => (
+                      <View key={idx} style={styles.certItem}>
+                        <Ionicons name="ribbon-outline" size={16} color={Colors.primary} />
+                        <Text style={styles.certText}>{cert}</Text>
+                      </View>
+                    )
+                  )}
+                </>
+              )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderBulletOptimizations = () => {
+    if (!result) return null;
+    return (
+      <View style={styles.collapsibleWrap}>
+        <TouchableOpacity
+          style={styles.collapsibleHeader}
+          onPress={() => toggleSection('bullets')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.collapsibleLeft}>
+            <Ionicons name="construct-outline" size={20} color={Colors.warning} />
+            <Text style={styles.collapsibleTitle}>Executive Bullet Optimizations</Text>
+          </View>
+          <View style={[styles.badgeCount, { backgroundColor: 'rgba(255, 214, 0, 0.15)' }]}>
+            <Text style={[styles.badgeCountText, { color: Colors.warning }]}>
+              {result.bullet_point_optimizations?.length || 0} Rewrites
+            </Text>
+          </View>
+          <Ionicons
+            name={expandedSection === 'bullets' ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        {expandedSection === 'bullets' && (
+          <View style={styles.expandedContent}>
+            <Text style={styles.bulletIntroText}>
+              Google XYZ Formula Rewrites: Accomplished [X] as measured by [Y], by doing [Z].
+            </Text>
+
+            {(result.bullet_point_optimizations || []).map((opt: any, idx: number) => (
+              <View key={idx} style={styles.bulletOptCard}>
+                {/* Original Weak Bullet */}
+                <View style={styles.bulletSection}>
+                  <Text style={styles.bulletLabel}>ORIGINAL BULLET POINT</Text>
+                  <View style={styles.bulletOriginalBox}>
+                    <Text style={styles.bulletOriginalText}>"{opt.original_text}"</Text>
+                  </View>
+                </View>
+
+                {/* Flagged Issue */}
+                <View style={styles.bulletSection}>
+                  <Text style={[styles.bulletLabel, { color: Colors.error }]}>IDENTIFIED ISSUE</Text>
+                  <Text style={styles.bulletIssueText}>⚠ {opt.issue}</Text>
+                </View>
+
+                {/* High-Impact Enterprise Rewrite */}
+                <View style={styles.bulletSection}>
+                  <View style={styles.rewriteHeaderRow}>
+                    <Text style={[styles.bulletLabel, { color: Colors.success }]}>
+                      ENTERPRISE XYZ REWRITE
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.copyBtn}
+                      onPress={() => handleCopyRewrite(opt.enterprise_rewrite, idx)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={copiedIndex === idx ? 'checkmark-done' : 'copy-outline'}
+                        size={14}
+                        color={copiedIndex === idx ? Colors.success : Colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.copyBtnText,
+                          copiedIndex === idx && { color: Colors.success },
+                        ]}
+                      >
+                        {copiedIndex === idx ? 'Copied!' : 'Copy'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.bulletRewriteBox}>
+                    <Text style={styles.bulletRewriteText}>{opt.enterprise_rewrite}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderActionPlan = () => {
+    if (!result) return null;
+    return (
+      <View style={styles.collapsibleWrap}>
+        <TouchableOpacity
+          style={styles.collapsibleHeader}
+          onPress={() => toggleSection('action_plan')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.collapsibleLeft}>
+            <Ionicons name="flag-outline" size={20} color={Colors.primary} />
+            <Text style={styles.collapsibleTitle}>Priority 90+ Score Action Plan</Text>
+          </View>
+          <Ionicons
+            name={expandedSection === 'action_plan' ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        {expandedSection === 'action_plan' && (
+          <View style={styles.expandedContent}>
+            {(result.tailored_action_plan || result.suggestions || []).map(
+              (step: string, idx: number) => (
+                <View key={idx} style={styles.actionPlanItem}>
+                  <View style={styles.actionPlanNumber}>
+                    <Text style={styles.actionPlanNumberText}>{idx + 1}</Text>
+                  </View>
+                  <Text style={styles.actionPlanText}>{step}</Text>
+                </View>
+              )
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderCTAButton = () => (
+    <Button
+      title="Upload Revised Resume"
+      onPress={handleUpload}
+      style={styles.optimizeBtn}
+      variant="primary"
+    />
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -232,518 +761,41 @@ export default function ResumeReviewScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* TARGET ROLE & INDUSTRY CONFIGURATION PANEL */}
-        <View style={styles.configCard}>
-          <TouchableOpacity
-            style={styles.configCardHeader}
-            onPress={() => setShowConfig(!showConfig)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.configTitleRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="briefcase" size={16} color={Colors.primary} />
+        <ResponsiveContainer maxWidth={isDesktop ? 1220 : 720}>
+          {isDesktop && result ? (
+            <View style={styles.desktopSplitLayout}>
+              <View style={styles.desktopLeftCol}>
+                {renderConfigCard()}
+                {renderUploadArea()}
+                {renderScorecard()}
+                {renderCTAButton()}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.configTitle}>Target Evaluation Rubric</Text>
-                <Text style={styles.configSubtitle}>
-                  {activeRole} • {INDUSTRIES.find(i => i.value === selectedIndustry)?.label || 'Technology'}
-                  {jobDescription.trim() ? ' • Target JD Attached' : ''}
-                </Text>
+              <View style={styles.desktopRightCol}>
+                {renderRubricCard()}
+                {renderRedFlags()}
+                {renderKeywordAnalysis()}
+                {renderBulletOptimizations()}
+                {renderActionPlan()}
               </View>
-              <Ionicons
-                name={showConfig ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={Colors.textMuted}
-              />
             </View>
-          </TouchableOpacity>
-
-          {showConfig && (
-            <View style={styles.configBody}>
-              {/* Target Role Selector */}
-              <Text style={styles.inputLabel}>TARGET JOB ROLE</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipScroll}
-                contentContainerStyle={styles.chipRow}
-              >
-                {POPULAR_ROLES.map((r) => {
-                  const isSelected = targetRole === r && !customRole;
-                  return (
-                    <TouchableOpacity
-                      key={r}
-                      style={[styles.chip, isSelected && styles.chipActive]}
-                      onPress={() => {
-                        setTargetRole(r);
-                        setCustomRole('');
-                      }}
-                    >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                        {r}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Custom Role Input */}
-              <View style={styles.customRoleInputRow}>
-                <Ionicons name="pencil-outline" size={16} color={Colors.textMuted} />
-                <TextInput
-                  style={styles.customRoleInput}
-                  placeholder="Or type custom role (e.g., Staff ML Engineer)..."
-                  placeholderTextColor={Colors.textMuted}
-                  value={customRole}
-                  onChangeText={(text) => setCustomRole(text)}
-                />
-              </View>
-
-              {/* Industry Selector */}
-              <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>INDUSTRY DOMAIN</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipScroll}
-                contentContainerStyle={styles.chipRow}
-              >
-                {INDUSTRIES.map((ind) => {
-                  const isSelected = selectedIndustry === ind.value;
-                  return (
-                    <TouchableOpacity
-                      key={ind.value}
-                      style={[styles.chip, isSelected && styles.chipActive]}
-                      onPress={() => setSelectedIndustry(ind.value)}
-                    >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                        {ind.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Optional Job Description Accordion */}
-              <TouchableOpacity
-                style={styles.jdToggleRow}
-                onPress={() => setShowJdInput(!showJdInput)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={showJdInput ? 'document-text' : 'document-text-outline'}
-                  size={16}
-                  color={jobDescription.trim() ? Colors.primary : Colors.textMuted}
-                />
-                <Text style={styles.jdToggleText}>
-                  {showJdInput ? 'Hide Target Job Description' : 'Add Target Job Description (Optional)'}
-                </Text>
-                {jobDescription.trim() && (
-                  <View style={styles.jdActivePill}>
-                    <Text style={styles.jdActivePillText}>Active</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {showJdInput && (
-                <View style={styles.jdInputBox}>
-                  <TextInput
-                    style={styles.jdTextInput}
-                    placeholder="Paste job posting text here to evaluate resume keywords and competencies against the exact requirements..."
-                    placeholderTextColor={Colors.textMuted}
-                    value={jobDescription}
-                    onChangeText={setJobDescription}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                  {jobDescription.length > 0 && (
-                    <View style={styles.jdCharCountRow}>
-                      <Text style={styles.jdCharCountText}>{jobDescription.length} characters</Text>
-                      <TouchableOpacity onPress={() => setJobDescription('')}>
-                        <Text style={styles.jdClearText}>Clear</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
+          ) : (
+            <>
+              {renderConfigCard()}
+              {renderUploadArea()}
+              {result && (
+                <>
+                  {renderScorecard()}
+                  {renderRubricCard()}
+                  {renderRedFlags()}
+                  {renderKeywordAnalysis()}
+                  {renderBulletOptimizations()}
+                  {renderActionPlan()}
+                  {renderCTAButton()}
+                </>
               )}
-            </View>
+            </>
           )}
-        </View>
-
-        {/* UPLOAD HERO BOX */}
-        <View style={styles.uploadArea}>
-          <View style={styles.uploadIconCircle}>
-            <Ionicons name="cloud-upload" size={28} color={Colors.primary} />
-          </View>
-          <Text style={styles.uploadTitle}>Upload Resume for ATS Diagnostic</Text>
-          <Text style={styles.uploadSubtitle}>
-            OCR Noise-tolerant PDF & Word parsing with RAG benchmarks
-          </Text>
-
-          <View style={styles.targetContextRow}>
-            <View style={styles.contextTag}>
-              <Ionicons name="person" size={12} color={Colors.primary} />
-              <Text style={styles.contextTagText}>{activeRole}</Text>
-            </View>
-            <View style={[styles.contextTag, { borderColor: 'rgba(68, 138, 255, 0.4)' }]}>
-              <Ionicons name="business" size={12} color={Colors.info} />
-              <Text style={[styles.contextTagText, { color: Colors.info }]}>
-                {INDUSTRIES.find(i => i.value === selectedIndustry)?.label || 'Technology'}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.browseButton}
-            onPress={handleUpload}
-            activeOpacity={0.8}
-            disabled={analyzing}
-          >
-            {analyzing ? (
-              <View style={styles.analyzingRow}>
-                <ActivityIndicator size="small" color="#0B131E" />
-                <Text style={styles.analyzingText}>{analysisStep}</Text>
-              </View>
-            ) : (
-              <View style={styles.buttonInnerRow}>
-                <Ionicons name="document-attach-outline" size={18} color="#0B131E" />
-                <Text style={styles.browseButtonText}>Select Resume File (PDF)</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* ATS DIAGNOSTIC RESULTS */}
-        {result && (
-          <>
-            {/* EXECUTIVE SUMMARY SCORECARD */}
-            <View style={styles.scorecardCard}>
-              <View style={styles.scorecardTop}>
-                <View style={styles.scoreRingWrap}>
-                  <ProgressRing
-                    progress={overallScore}
-                    size={94}
-                    strokeWidth={8}
-                    color={status.color}
-                    label=""
-                  >
-                    <View style={styles.scoreInsideText}>
-                      <Text style={[styles.scoreNumber, { color: status.color }]}>{overallScore}</Text>
-                      <Text style={styles.scoreLabel}>/ 100</Text>
-                    </View>
-                  </ProgressRing>
-                </View>
-
-                <View style={styles.scoreMetaColumn}>
-                  <View style={[styles.statusBadge, { backgroundColor: `${status.color}20`, borderColor: `${status.color}50` }]}>
-                    <Ionicons name={status.icon as any} size={14} color={status.color} />
-                    <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.label}</Text>
-                  </View>
-
-                  <Text style={styles.roleAnalyzedText}>Target: {result.analyzedRole || activeRole}</Text>
-
-                  {result.detected_domain && (
-                    <View style={styles.domainPill}>
-                      <Ionicons name="shield-checkmark-outline" size={12} color={Colors.primary} />
-                      <Text style={styles.domainPillText}>{result.detected_domain}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Executive Assessment Verdict */}
-              {result.executive_summary && (
-                <View style={styles.executiveSummaryBox}>
-                  <View style={styles.execHeaderRow}>
-                    <Ionicons name="chatbox-ellipses-outline" size={16} color={Colors.primary} />
-                    <Text style={styles.execHeaderTitle}>Executive Strategist Verdict</Text>
-                  </View>
-                  <Text style={styles.execSummaryContent}>{result.executive_summary}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* 4-D WEIGHTED ATS SCORING BREAKDOWN */}
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionIconCircle}>
-                  <Ionicons name="analytics" size={16} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionHeaderTitle}>4-Dimension ATS Rubric</Text>
-                  <Text style={styles.sectionHeaderSubtitle}>Weighted section scores out of 100% total</Text>
-                </View>
-              </View>
-
-              <View style={styles.scoreBarsList}>
-                {/* 1. Keyword Alignment (40%) */}
-                {renderScoreItem(
-                  'Keyword Alignment & ATS Parsability',
-                  '40% Weight',
-                  result.section_scores?.keyword_alignment ?? result.atsScore ?? 0,
-                  'key-outline',
-                  'Core skills, technical tools, domain methodologies'
-                )}
-
-                {/* 2. Quantifiable Impact & Metrics (25%) */}
-                {renderScoreItem(
-                  'Quantifiable Impact & Metrics',
-                  '25% Weight',
-                  result.section_scores?.impact_and_metrics ?? result.impactScore ?? 0,
-                  'trending-up-outline',
-                  "Adoption of Google's XYZ impact formula with numbers"
-                )}
-
-                {/* 3. Role & Experience Relevance (20%) */}
-                {renderScoreItem(
-                  'Role & Experience Relevance',
-                  '20% Weight',
-                  result.section_scores?.experience_relevance ?? 75,
-                  'briefcase-outline',
-                  'Seniority depth, career progression, domain competencies'
-                )}
-
-                {/* 4. Formatting, Structure & Readability (15%) */}
-                {renderScoreItem(
-                  'Formatting & Structure Index',
-                  '15% Weight',
-                  result.section_scores?.clarity_and_structure ?? result.formattingScore ?? 0,
-                  'list-outline',
-                  'Clear hierarchy, standard headings, OCR parsability'
-                )}
-              </View>
-            </View>
-
-            {/* CRITICAL RED FLAGS */}
-            {result.critical_red_flags && result.critical_red_flags.length > 0 && (
-              <View style={styles.collapsibleWrap}>
-                <TouchableOpacity
-                  style={[styles.collapsibleHeader, { borderColor: 'rgba(255, 82, 82, 0.3)', backgroundColor: '#181215' }]}
-                  onPress={() => toggleSection('red_flags')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.collapsibleLeft}>
-                    <Ionicons name="warning-outline" size={20} color={Colors.error} />
-                    <Text style={[styles.collapsibleTitle, { color: Colors.error }]}>Critical Red Flags</Text>
-                  </View>
-                  <View style={styles.badgeCount}>
-                    <Text style={styles.badgeCountText}>{result.critical_red_flags.length} Dealbreakers</Text>
-                  </View>
-                  <Ionicons
-                    name={expandedSection === 'red_flags' ? 'chevron-up' : 'chevron-down'}
-                    size={18}
-                    color={Colors.error}
-                  />
-                </TouchableOpacity>
-
-                {expandedSection === 'red_flags' && (
-                  <View style={styles.expandedContent}>
-                    {result.critical_red_flags.map((flag: string, idx: number) => (
-                      <View key={idx} style={styles.redFlagItem}>
-                        <Ionicons name="alert-circle" size={16} color={Colors.error} style={{ marginTop: 2 }} />
-                        <Text style={styles.redFlagText}>{flag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* KEYWORD ANALYSIS DEEP-DIVE */}
-            <View style={styles.collapsibleWrap}>
-              <TouchableOpacity
-                style={styles.collapsibleHeader}
-                onPress={() => toggleSection('keywords')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.collapsibleLeft}>
-                  <Ionicons name="search-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.collapsibleTitle}>Keyword & Competency Deep-Dive</Text>
-                </View>
-                <Ionicons
-                  name={expandedSection === 'keywords' ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={Colors.textMuted}
-                />
-              </TouchableOpacity>
-
-              {expandedSection === 'keywords' && (
-                <View style={styles.expandedContent}>
-                  {/* Matched Keywords */}
-                  <Text style={styles.subSectionTitle}>
-                    MATCHED ATS KEYWORDS ({result.keyword_analysis?.matched_keywords?.length || result.extractedKeywords?.length || 0})
-                  </Text>
-                  <View style={styles.keywordsRow}>
-                    {(result.keyword_analysis?.matched_keywords || result.extractedKeywords || []).map(
-                      (kw: string, idx: number) => (
-                        <View key={idx} style={styles.kwBadgeSuccess}>
-                          <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
-                          <Text style={styles.kwTextSuccess}>{kw}</Text>
-                        </View>
-                      )
-                    )}
-                  </View>
-
-                  {/* Missing Critical Keywords */}
-                  <Text style={[styles.subSectionTitle, { marginTop: Spacing.md }]}>
-                    CRITICAL MISSING KEYWORDS (IMMEDIATE ATS FILTERS)
-                  </Text>
-                  <View style={styles.keywordsRow}>
-                    {(result.keyword_analysis?.missing_critical_keywords || result.missingKeywords || []).map(
-                      (kw: string, idx: number) => (
-                        <View key={idx} style={styles.kwBadge}>
-                          <Ionicons name="add-circle-outline" size={12} color={Colors.error} />
-                          <Text style={styles.kwText}>{kw}</Text>
-                        </View>
-                      )
-                    )}
-                  </View>
-
-                  {/* Recommended Certifications & Tools */}
-                  {result.keyword_analysis?.recommended_certifications_or_tools &&
-                    result.keyword_analysis.recommended_certifications_or_tools.length > 0 && (
-                      <>
-                        <Text style={[styles.subSectionTitle, { marginTop: Spacing.md }]}>
-                          RECOMMENDED CREDENTIALS & CERTIFICATIONS
-                        </Text>
-                        {result.keyword_analysis.recommended_certifications_or_tools.map(
-                          (cert: string, idx: number) => (
-                            <View key={idx} style={styles.certItem}>
-                              <Ionicons name="ribbon-outline" size={16} color={Colors.primary} />
-                              <Text style={styles.certText}>{cert}</Text>
-                            </View>
-                          )
-                        )}
-                      </>
-                    )}
-                </View>
-              )}
-            </View>
-
-            {/* BULLET POINT OPTIMIZATIONS (BEFORE & AFTER) */}
-            <View style={styles.collapsibleWrap}>
-              <TouchableOpacity
-                style={styles.collapsibleHeader}
-                onPress={() => toggleSection('bullets')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.collapsibleLeft}>
-                  <Ionicons name="construct-outline" size={20} color={Colors.warning} />
-                  <Text style={styles.collapsibleTitle}>Executive Bullet Optimizations</Text>
-                </View>
-                <View style={[styles.badgeCount, { backgroundColor: 'rgba(255, 214, 0, 0.15)' }]}>
-                  <Text style={[styles.badgeCountText, { color: Colors.warning }]}>
-                    {result.bullet_point_optimizations?.length || 0} Rewrites
-                  </Text>
-                </View>
-                <Ionicons
-                  name={expandedSection === 'bullets' ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={Colors.textMuted}
-                />
-              </TouchableOpacity>
-
-              {expandedSection === 'bullets' && (
-                <View style={styles.expandedContent}>
-                  <Text style={styles.bulletIntroText}>
-                    Google XYZ Formula Rewrites: Accomplished [X] as measured by [Y], by doing [Z].
-                  </Text>
-
-                  {(result.bullet_point_optimizations || []).map((opt: any, idx: number) => (
-                    <View key={idx} style={styles.bulletOptCard}>
-                      {/* Original Weak Bullet */}
-                      <View style={styles.bulletSection}>
-                        <Text style={styles.bulletLabel}>ORIGINAL BULLET POINT</Text>
-                        <View style={styles.bulletOriginalBox}>
-                          <Text style={styles.bulletOriginalText}>"{opt.original_text}"</Text>
-                        </View>
-                      </View>
-
-                      {/* Flagged Issue */}
-                      <View style={styles.bulletSection}>
-                        <Text style={[styles.bulletLabel, { color: Colors.error }]}>IDENTIFIED ISSUE</Text>
-                        <Text style={styles.bulletIssueText}>⚠ {opt.issue}</Text>
-                      </View>
-
-                      {/* High-Impact Enterprise Rewrite */}
-                      <View style={styles.bulletSection}>
-                        <View style={styles.rewriteHeaderRow}>
-                          <Text style={[styles.bulletLabel, { color: Colors.success }]}>
-                            ENTERPRISE XYZ REWRITE
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.copyBtn}
-                            onPress={() => handleCopyRewrite(opt.enterprise_rewrite, idx)}
-                            activeOpacity={0.7}
-                          >
-                            <Ionicons
-                              name={copiedIndex === idx ? 'checkmark-done' : 'copy-outline'}
-                              size={14}
-                              color={copiedIndex === idx ? Colors.success : Colors.primary}
-                            />
-                            <Text
-                              style={[
-                                styles.copyBtnText,
-                                copiedIndex === idx && { color: Colors.success },
-                              ]}
-                            >
-                              {copiedIndex === idx ? 'Copied!' : 'Copy'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                        <View style={styles.bulletRewriteBox}>
-                          <Text style={styles.bulletRewriteText}>{opt.enterprise_rewrite}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* STEP-BY-STEP TAILORED ACTION PLAN */}
-            <View style={styles.collapsibleWrap}>
-              <TouchableOpacity
-                style={styles.collapsibleHeader}
-                onPress={() => toggleSection('action_plan')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.collapsibleLeft}>
-                  <Ionicons name="flag-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.collapsibleTitle}>Priority 90+ Score Action Plan</Text>
-                </View>
-                <Ionicons
-                  name={expandedSection === 'action_plan' ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={Colors.textMuted}
-                />
-              </TouchableOpacity>
-
-              {expandedSection === 'action_plan' && (
-                <View style={styles.expandedContent}>
-                  {(result.tailored_action_plan || result.suggestions || []).map(
-                    (step: string, idx: number) => (
-                      <View key={idx} style={styles.actionPlanItem}>
-                        <View style={styles.actionPlanNumber}>
-                          <Text style={styles.actionPlanNumberText}>{idx + 1}</Text>
-                        </View>
-                        <Text style={styles.actionPlanText}>{step}</Text>
-                      </View>
-                    )
-                  )}
-                </View>
-              )}
-            </View>
-
-            {/* RE-ANALYZE CTA */}
-            <Button
-              title="Upload Revised Resume"
-              onPress={handleUpload}
-              style={styles.optimizeBtn}
-              variant="primary"
-            />
-          </>
-        )}
+        </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>
   );
@@ -780,6 +832,20 @@ export default function ResumeReviewScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: Spacing.lg, paddingBottom: 60 },
+
+  // Desktop Responsive Layout
+  desktopSplitLayout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.lg,
+    width: '100%',
+  },
+  desktopLeftCol: {
+    flex: 4.8,
+  },
+  desktopRightCol: {
+    flex: 5.2,
+  },
 
   // Header Config Button
   headerConfigBtn: {

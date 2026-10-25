@@ -1,6 +1,7 @@
 /**
  * AI Mentor - Interview Categories Screen
  * Restored original layout with dedicated Target Top Companies hub card
+ * Fully responsive on Web, Tablet, and Mobile
  */
 import React from 'react';
 import {
@@ -8,15 +9,20 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing } from '../../src/constants/theme';
+import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Header } from '../../src/components/Header';
 import { CategoryCard } from '../../src/components/CategoryCard';
+import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 export default function InterviewsScreen() {
   const router = useRouter();
+  const { isDesktop, isTablet } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -26,69 +32,78 @@ export default function InterviewsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Title Section */}
-        <View style={styles.headingSection}>
-          <Text style={styles.mainTitle}>Select focus.</Text>
-          <Text style={styles.subtitle}>
-            Tailor your mentor sessions by choosing a specific career milestone.
-          </Text>
-        </View>
+        <ResponsiveContainer>
+          {/* Title Section */}
+          <View style={styles.headingSection}>
+            <Text style={styles.mainTitle}>Select focus.</Text>
+            <Text style={styles.subtitle}>
+              Tailor your mentor sessions by choosing a specific career milestone.
+            </Text>
+          </View>
 
-        {/* Target Top Companies (Featured Card - opens dedicated page) */}
-        <CategoryCard
-          title="Target Top Companies"
-          description="Prepare with calibrated benchmarks for Sri Lankan tech leaders (WSO2, IFS, Sysco LABS, LSEG) & Global giants (Google, Meta, Amazon). Includes live job openings & tech stacks."
-          iconName="business-outline"
-          iconColor="#00F5D4"
-          iconBgColor="rgba(0, 245, 212, 0.12)"
-          badge="GLOBAL & LK"
-          onPress={() => router.push('/target-companies')}
-        />
-
-        {/* Leadership Questions (Full Width - 40 MCQs) */}
-        <CategoryCard
-          title="Leadership Questions"
-          description="40-question scenario papers tiered from Internship to Executive level with instant score review."
-          iconName="ribbon-outline"
-          iconColor="#00F5D4"
-          iconBgColor="rgba(0, 245, 212, 0.12)"
-          badge="40 MCQs"
-          onPress={() => router.push('/leadership-mcq')}
-        />
-
-        {/* 2-Column Split: Technical & Behavioral */}
-        <View style={styles.splitRow}>
+          {/* Target Top Companies (Featured Hero Card) */}
           <CategoryCard
-            title="Technical"
-            description="Code, system design, and theory."
-            iconName="code-slash-outline"
+            title="Target Top Companies"
+            description="Prepare with calibrated benchmarks for Sri Lankan tech leaders (WSO2, IFS, Sysco LABS, LSEG) & Global giants (Google, Meta, Amazon). Includes live job openings & tech stacks."
+            iconName="business-outline"
             iconColor="#00F5D4"
             iconBgColor="rgba(0, 245, 212, 0.12)"
-            fullWidth={false}
-            onPress={() => router.push('/coding-challenge')}
+            badge="GLOBAL & LK"
+            style={isLargeScreen ? styles.heroCardDesktop : undefined}
+            onPress={() => router.push('/target-companies')}
           />
 
-          <CategoryCard
-            title="Behavioral"
-            description="STAR method and scenario logic."
-            iconName="bulb-outline"
-            iconColor="#FFB300"
-            iconBgColor="rgba(255, 179, 0, 0.12)"
-            fullWidth={false}
-            onPress={() => router.push('/mock-interview')}
-          />
-        </View>
+          {/* Grid container for desktop, stacked for mobile */}
+          <View style={isLargeScreen ? styles.desktopGrid : undefined}>
+            {/* Leadership Questions (40 MCQs) */}
+            <CategoryCard
+              title="Leadership Questions"
+              description="40-question scenario papers tiered from Internship to Executive level with instant score review."
+              iconName="ribbon-outline"
+              iconColor="#00F5D4"
+              iconBgColor="rgba(0, 245, 212, 0.12)"
+              badge="40 MCQs"
+              style={isLargeScreen ? styles.gridCardDesktop : undefined}
+              onPress={() => router.push('/leadership-mcq')}
+            />
 
-        {/* Final Round (ELITE) */}
-        <CategoryCard
-          title="Final Round"
-          description="Executive alignment, high-stakes decision making, and culture assessment."
-          iconName="shield-checkmark-outline"
-          iconColor="#00F5D4"
-          iconBgColor="rgba(0, 245, 212, 0.12)"
-          badge="ELITE"
-          onPress={() => router.push('/mock-interview')}
-        />
+            {/* Technical */}
+            <CategoryCard
+              title="Technical"
+              description="Code sandbox, system design patterns, and core algorithmic theory."
+              iconName="code-slash-outline"
+              iconColor="#00F5D4"
+              iconBgColor="rgba(0, 245, 212, 0.12)"
+              fullWidth={!isLargeScreen}
+              style={isLargeScreen ? styles.gridCardDesktop : undefined}
+              onPress={() => router.push('/coding-challenge')}
+            />
+
+            {/* Behavioral */}
+            <CategoryCard
+              title="Behavioral"
+              description="STAR method, conflict resolution, and executive scenario logic."
+              iconName="bulb-outline"
+              iconColor="#FFB300"
+              iconBgColor="rgba(255, 179, 0, 0.12)"
+              fullWidth={!isLargeScreen}
+              style={isLargeScreen ? styles.gridCardDesktop : undefined}
+              onPress={() => router.push('/mock-interview')}
+            />
+
+            {/* Final Round (ELITE) */}
+            <CategoryCard
+              title="Final Round"
+              description="Executive alignment, high-stakes decision making, and culture assessment."
+              iconName="shield-checkmark-outline"
+              iconColor="#00F5D4"
+              iconBgColor="rgba(0, 245, 212, 0.12)"
+              badge="ELITE"
+              style={isLargeScreen ? styles.gridCardDesktop : undefined}
+              onPress={() => router.push('/mock-interview')}
+            />
+          </View>
+        </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>
   );
@@ -100,12 +115,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#070C12',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110,
   },
   headingSection: {
     marginTop: Spacing.xl,
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xl,
+    width: '100%',
   },
   mainTitle: {
     fontSize: 32,
@@ -118,9 +133,20 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 22,
   },
-  splitRow: {
+  heroCardDesktop: {
+    marginBottom: Spacing.lg,
+    borderColor: 'rgba(0, 245, 212, 0.3)',
+    backgroundColor: '#101B2B',
+  },
+  desktopGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.md,
-    marginBottom: Spacing.xs,
+    width: '100%',
+  },
+  gridCardDesktop: {
+    width: '48.8%',
+    marginBottom: 0,
+    minHeight: 150,
   },
 });

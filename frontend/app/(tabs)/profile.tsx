@@ -35,6 +35,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/t
 import { Header } from '../../src/components/Header';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { Button } from '../../src/components/Button';
+import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { useResponsive } from '../../src/hooks/useResponsive';
 import { useAuth } from '../../src/context/AuthContext';
 import { api, API_BASE_URL } from '../../src/services/api';
 
@@ -333,6 +335,28 @@ export default function ProfileScreen() {
 
   // Account Deletion (CRUD Delete)
   const handleDeleteAccount = () => {
+    const doDelete = async () => {
+      try {
+        const res = await api.deleteAccount();
+        if (res.success) {
+          await logout();
+          router.replace('/sign-in');
+        } else {
+          Alert.alert('Error', res.message || 'Could not delete account.');
+        }
+      } catch (e: any) {
+        Alert.alert('Error', e.message || 'Failed to delete account.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm('Are you sure you want to permanently delete your account?') : true;
+      if (confirmed) {
+        doDelete();
+      }
+      return;
+    }
+
     Alert.alert(
       'Delete Account',
       'Are you sure you want to permanently delete your account? All interview histories, challenges, and ATS reports will be irreversibly erased.',
@@ -341,25 +365,22 @@ export default function ProfileScreen() {
         {
           text: 'Permanently Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              const res = await api.deleteAccount();
-              if (res.success) {
-                await logout();
-                router.replace('/sign-in');
-              } else {
-                Alert.alert('Error', res.message || 'Could not delete account.');
-              }
-            } catch (e: any) {
-              Alert.alert('Error', e.message || 'Failed to delete account.');
-            }
-          },
+          onPress: doDelete,
         },
       ]
     );
   };
 
   const handleSignOut = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm('Are you sure you want to sign out?') : true;
+      if (confirmed) {
+        await logout();
+        router.replace('/sign-in');
+      }
+      return;
+    }
+
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -392,6 +413,243 @@ export default function ProfileScreen() {
     ? user.skills.split(',').map((s) => s.trim()).filter(Boolean)
     : ['React', 'TypeScript', 'Node.js', 'PostgreSQL'];
 
+  const { isDesktop, isTablet } = useResponsive();
+
+  const renderUserSection = () => (
+    <View style={styles.userSection}>
+      <TouchableOpacity
+        style={styles.avatarWrapper}
+        onPress={() => setAvatarModalVisible(true)}
+        activeOpacity={0.85}
+      >
+        <View style={styles.avatarCircle}>
+          {uploadingAvatar ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : getAvatarSource() ? (
+            <Image source={getAvatarSource()!} style={styles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={44} color={Colors.primary} />
+          )}
+        </View>
+
+        {/* Camera / Edit Badge */}
+        <View style={styles.editBadge}>
+          <Ionicons name="camera" size={14} color="#070C12" />
+        </View>
+
+        {/* Readiness Score Pill */}
+        <View style={styles.scoreBadge}>
+          <Text style={styles.scoreBadgeText}>{readinessScore}%</Text>
+        </View>
+      </TouchableOpacity>
+
+      <Text style={styles.userName}>{user?.name || 'Candidate Name'}</Text>
+      <Text style={styles.userRole}>{user?.targetRole || 'Full Stack Developer'}</Text>
+      <Text style={styles.userEmail}>{user?.email}</Text>
+
+      {/* Experience Level Pill */}
+      <View style={styles.expBadge}>
+        <Ionicons name="ribbon-outline" size={13} color={Colors.primary} />
+        <Text style={styles.expBadgeText}>{user?.experienceLevel || 'Mid-Level'}</Text>
+      </View>
+    </View>
+  );
+
+  const renderStatsRow = () => (
+    <View style={styles.statsRow}>
+      <View style={styles.statItem}>
+        <Text style={styles.statNumber}>{stats?.totalInterviews || 0}</Text>
+        <Text style={styles.statLabel}>Interviews</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statNumber}>{stats?.solvedChallenges || 0}</Text>
+        <Text style={styles.statLabel}>Challenges</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statNumber}>{stats?.uploadedResumes || 0}</Text>
+        <Text style={styles.statLabel}>Resumes</Text>
+      </View>
+    </View>
+  );
+
+  const renderReadinessCard = () => (
+    <View style={styles.readinessCard}>
+      <View style={styles.readinessLeft}>
+        <Text style={styles.readinessTitle}>OVERALL READINESS</Text>
+        <View style={styles.scoreNumberRow}>
+          <Text style={styles.scoreNumberLarge}>{readinessScore}</Text>
+          <Text style={styles.scoreNumberTotal}> / 100</Text>
+        </View>
+        <Text style={styles.readinessStatus}>
+          {readinessScore === 0
+            ? 'Not Started (Take Drills)'
+            : stats?.readinessVerdict ||
+              (readinessScore >= 90
+                ? 'Enterprise Ready (Top 5%)'
+                : readinessScore >= 75
+                ? 'Job Ready'
+                : readinessScore >= 50
+                ? 'Making Steady Progress'
+                : 'Needs Practice')}
+        </Text>
+      </View>
+
+      <ProgressRing
+        progress={readinessScore}
+        size={76}
+        strokeWidth={7}
+        label={`${readinessScore}%`}
+      />
+    </View>
+  );
+
+  const renderBioSection = () => (
+    <View style={styles.sectionBlock}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeaderLabel}>EXECUTIVE SUMMARY / BIO</Text>
+        <TouchableOpacity onPress={openEditModal}>
+          <Text style={styles.sectionEditAction}>Edit</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.bioCard}>
+        <Text style={styles.bioText}>
+          {user?.bio || 'No professional bio added yet. Tap Edit to add your executive summary, career achievements, and interview goals.'}
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderSkillsSection = () => (
+    <View style={styles.sectionBlock}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeaderLabel}>CORE COMPETENCIES & SKILLS</Text>
+        <TouchableOpacity onPress={openEditModal}>
+          <Text style={styles.sectionEditAction}>Manage</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.skillsGrid}>
+        {skillsArray.map((skill, index) => (
+          <View key={index} style={styles.skillPill}>
+            <Text style={styles.skillPillText}>{skill}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderInfoCard = () => (
+    <View style={styles.sectionBlock}>
+      <Text style={styles.sectionHeaderLabel}>PROFESSIONAL DETAILS & LINKS</Text>
+      <View style={styles.infoCard}>
+        {/* Phone */}
+        <View style={styles.infoRow}>
+          <Ionicons name="call-outline" size={18} color={Colors.primary} />
+          <Text style={styles.infoLabel}>Phone:</Text>
+          <Text style={styles.infoValue}>{user?.phone || 'Not specified'}</Text>
+        </View>
+
+        <View style={styles.infoDivider} />
+
+        {/* Education */}
+        <View style={styles.infoRow}>
+          <Ionicons name="school-outline" size={18} color={Colors.primary} />
+          <Text style={styles.infoLabel}>Education:</Text>
+          <Text style={styles.infoValue}>{user?.education || 'BSc / Undergraduate'}</Text>
+        </View>
+
+        <View style={styles.infoDivider} />
+
+        {/* GitHub */}
+        <TouchableOpacity
+          style={styles.infoRow}
+          onPress={() => user?.githubUrl && Linking.openURL(user.githubUrl)}
+          disabled={!user?.githubUrl}
+        >
+          <Ionicons name="logo-github" size={18} color={Colors.primary} />
+          <Text style={styles.infoLabel}>GitHub:</Text>
+          <Text style={[styles.infoValue, user?.githubUrl && styles.infoLink]}>
+            {user?.githubUrl || 'Add GitHub URL'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.infoDivider} />
+
+        {/* LinkedIn */}
+        <TouchableOpacity
+          style={styles.infoRow}
+          onPress={() => user?.linkedinUrl && Linking.openURL(user.linkedinUrl)}
+          disabled={!user?.linkedinUrl}
+        >
+          <Ionicons name="logo-linkedin" size={18} color={Colors.primary} />
+          <Text style={styles.infoLabel}>LinkedIn:</Text>
+          <Text style={[styles.infoValue, user?.linkedinUrl && styles.infoLink]}>
+            {user?.linkedinUrl || 'Add LinkedIn URL'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderSecuritySection = () => (
+    <View style={styles.sectionBlock}>
+      <Text style={styles.sectionHeaderLabel}>SECURITY & ACCOUNT</Text>
+      <View style={styles.actionsCard}>
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => setPasswordModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="lock-closed-outline" size={18} color={Colors.primary} />
+            <Text style={styles.actionText}>Change Password</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        <View style={styles.infoDivider} />
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => router.push('/settings')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="settings-outline" size={18} color={Colors.primary} />
+            <Text style={styles.actionText}>App Preferences</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        <View style={styles.infoDivider} />
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="trash-outline" size={18} color={Colors.error} />
+            <Text style={[styles.actionText, { color: Colors.error }]}>Delete Account</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderSignOutButton = () => (
+    <TouchableOpacity
+      style={styles.signOutBtn}
+      onPress={handleSignOut}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="log-out-outline" size={18} color={Colors.primary} />
+      <Text style={styles.signOutText}>Sign Out</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header
@@ -413,232 +671,35 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* User Avatar & Identity Card */}
-        <View style={styles.userSection}>
-          <TouchableOpacity
-            style={styles.avatarWrapper}
-            onPress={() => setAvatarModalVisible(true)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.avatarCircle}>
-              {uploadingAvatar ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : getAvatarSource() ? (
-                <Image source={getAvatarSource()!} style={styles.avatarImage} />
-              ) : (
-                <Ionicons name="person" size={44} color={Colors.primary} />
-              )}
-            </View>
-
-            {/* Camera / Edit Badge */}
-            <View style={styles.editBadge}>
-              <Ionicons name="camera" size={14} color="#070C12" />
-            </View>
-
-            {/* Readiness Score Pill */}
-            <View style={styles.scoreBadge}>
-              <Text style={styles.scoreBadgeText}>{readinessScore}%</Text>
-            </View>
-          </TouchableOpacity>
-
-          <Text style={styles.userName}>{user?.name || 'Candidate Name'}</Text>
-          <Text style={styles.userRole}>{user?.targetRole || 'Full Stack Developer'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-
-          {/* Experience Level Pill */}
-          <View style={styles.expBadge}>
-            <Ionicons name="ribbon-outline" size={13} color={Colors.primary} />
-            <Text style={styles.expBadgeText}>{user?.experienceLevel || 'Mid-Level'}</Text>
-          </View>
-        </View>
-
-        {/* Aggregated Performance Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats?.totalInterviews || 0}</Text>
-            <Text style={styles.statLabel}>Interviews</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats?.solvedChallenges || 0}</Text>
-            <Text style={styles.statLabel}>Challenges</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats?.uploadedResumes || 0}</Text>
-            <Text style={styles.statLabel}>Resumes</Text>
-          </View>
-        </View>
-
-        {/* Readiness Score Gauge Card */}
-        <View style={styles.readinessCard}>
-          <View style={styles.readinessLeft}>
-            <Text style={styles.readinessTitle}>OVERALL READINESS</Text>
-            <View style={styles.scoreNumberRow}>
-              <Text style={styles.scoreNumberLarge}>{readinessScore}</Text>
-              <Text style={styles.scoreNumberTotal}> / 100</Text>
-            </View>
-            <Text style={styles.readinessStatus}>
-              {readinessScore === 0
-                ? 'Not Started (Take Drills)'
-                : stats?.readinessVerdict ||
-                  (readinessScore >= 90
-                    ? 'Enterprise Ready (Top 5%)'
-                    : readinessScore >= 75
-                    ? 'Job Ready'
-                    : readinessScore >= 50
-                    ? 'Making Steady Progress'
-                    : 'Needs Practice')}
-            </Text>
-          </View>
-
-          <ProgressRing
-            progress={readinessScore}
-            size={76}
-            strokeWidth={7}
-            label={`${readinessScore}%`}
-          />
-        </View>
-
-        {/* Professional Summary / Bio */}
-        <View style={styles.sectionBlock}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeaderLabel}>EXECUTIVE SUMMARY / BIO</Text>
-            <TouchableOpacity onPress={openEditModal}>
-              <Text style={styles.sectionEditAction}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.bioCard}>
-            <Text style={styles.bioText}>
-              {user?.bio || 'No professional bio added yet. Tap Edit to add your executive summary, career achievements, and interview goals.'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Core Technical Competencies & Skills */}
-        <View style={styles.sectionBlock}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeaderLabel}>CORE COMPETENCIES & SKILLS</Text>
-            <TouchableOpacity onPress={openEditModal}>
-              <Text style={styles.sectionEditAction}>Manage</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.skillsGrid}>
-            {skillsArray.map((skill, index) => (
-              <View key={index} style={styles.skillPill}>
-                <Text style={styles.skillPillText}>{skill}</Text>
+        <ResponsiveContainer maxWidth={isDesktop ? 1160 : 720}>
+          {isDesktop ? (
+            <View style={styles.desktopProfileLayout}>
+              <View style={styles.desktopProfileLeftCol}>
+                {renderUserSection()}
+                {renderStatsRow()}
+                {renderReadinessCard()}
+                {renderSecuritySection()}
+                {renderSignOutButton()}
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Contact & Professional Profiles */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeaderLabel}>PROFESSIONAL DETAILS & LINKS</Text>
-          <View style={styles.infoCard}>
-            {/* Phone */}
-            <View style={styles.infoRow}>
-              <Ionicons name="call-outline" size={18} color={Colors.primary} />
-              <Text style={styles.infoLabel}>Phone:</Text>
-              <Text style={styles.infoValue}>{user?.phone || 'Not specified'}</Text>
+              <View style={styles.desktopProfileRightCol}>
+                {renderBioSection()}
+                {renderSkillsSection()}
+                {renderInfoCard()}
+              </View>
             </View>
-
-            <View style={styles.infoDivider} />
-
-            {/* Education */}
-            <View style={styles.infoRow}>
-              <Ionicons name="school-outline" size={18} color={Colors.primary} />
-              <Text style={styles.infoLabel}>Education:</Text>
-              <Text style={styles.infoValue}>{user?.education || 'BSc / Undergraduate'}</Text>
-            </View>
-
-            <View style={styles.infoDivider} />
-
-            {/* GitHub */}
-            <TouchableOpacity
-              style={styles.infoRow}
-              onPress={() => user?.githubUrl && Linking.openURL(user.githubUrl)}
-              disabled={!user?.githubUrl}
-            >
-              <Ionicons name="logo-github" size={18} color={Colors.primary} />
-              <Text style={styles.infoLabel}>GitHub:</Text>
-              <Text style={[styles.infoValue, user?.githubUrl && styles.infoLink]}>
-                {user?.githubUrl || 'Add GitHub URL'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.infoDivider} />
-
-            {/* LinkedIn */}
-            <TouchableOpacity
-              style={styles.infoRow}
-              onPress={() => user?.linkedinUrl && Linking.openURL(user.linkedinUrl)}
-              disabled={!user?.linkedinUrl}
-            >
-              <Ionicons name="logo-linkedin" size={18} color={Colors.primary} />
-              <Text style={styles.infoLabel}>LinkedIn:</Text>
-              <Text style={[styles.infoValue, user?.linkedinUrl && styles.infoLink]}>
-                {user?.linkedinUrl || 'Add LinkedIn URL'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Security & Account Management Block */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeaderLabel}>SECURITY & ACCOUNT</Text>
-          <View style={styles.actionsCard}>
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => setPasswordModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionLeft}>
-                <Ionicons name="lock-closed-outline" size={18} color={Colors.primary} />
-                <Text style={styles.actionText}>Change Password</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-
-            <View style={styles.infoDivider} />
-
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => router.push('/settings')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionLeft}>
-                <Ionicons name="settings-outline" size={18} color={Colors.primary} />
-                <Text style={styles.actionText}>App Preferences</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-
-            <View style={styles.infoDivider} />
-
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={handleDeleteAccount}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionLeft}>
-                <Ionicons name="trash-outline" size={18} color={Colors.error} />
-                <Text style={[styles.actionText, { color: Colors.error }]}>Delete Account</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Sign Out Button */}
-        <TouchableOpacity
-          style={styles.signOutBtn}
-          onPress={handleSignOut}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="log-out-outline" size={18} color={Colors.primary} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+          ) : (
+            <>
+              {renderUserSection()}
+              {renderStatsRow()}
+              {renderReadinessCard()}
+              {renderBioSection()}
+              {renderSkillsSection()}
+              {renderInfoCard()}
+              {renderSecuritySection()}
+              {renderSignOutButton()}
+            </>
+          )}
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* ================= EDIT PROFILE MODAL ================= */}
@@ -934,6 +995,21 @@ const styles = StyleSheet.create({
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: 'rgba(0, 245, 212, 0.1)', borderRadius: BorderRadius.full, borderWidth: 1, borderColor: 'rgba(0, 245, 212, 0.3)' },
   headerBtnText: { fontSize: Typography.caption, fontWeight: Typography.bold, color: Colors.primary },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl },
+
+  // Desktop Responsive Layout
+  desktopProfileLayout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xl,
+    marginTop: Spacing.md,
+    width: '100%',
+  },
+  desktopProfileLeftCol: {
+    flex: 4.2,
+  },
+  desktopProfileRightCol: {
+    flex: 5.8,
+  },
 
   // User Section
   userSection: { alignItems: 'center', marginTop: Spacing.lg, marginBottom: Spacing.xl },

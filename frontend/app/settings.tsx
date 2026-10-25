@@ -11,6 +11,7 @@ import {
   Switch,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,7 +26,16 @@ export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(true);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm('Are you sure you want to sign out?') : true;
+      if (confirmed) {
+        await logout();
+        router.replace('/sign-in');
+      }
+      return;
+    }
+
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {

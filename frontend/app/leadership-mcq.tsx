@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,12 +19,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
 import { Button } from '../src/components/Button';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import { LEADERSHIP_PAPERS, LeadershipPaper, LeadershipQuestion } from '../src/data/leadershipPapers';
 import { useNotifications } from '../src/context';
 
 export default function LeadershipMCQScreen() {
   const router = useRouter();
   const { addNotification } = useNotifications();
+  const { isDesktop, isTablet } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
 
   // Screen modes: 'SELECT_PAPER' | 'QUIZ' | 'RESULTS'
   const [mode, setMode] = useState<'SELECT_PAPER' | 'QUIZ' | 'RESULTS'>('SELECT_PAPER');
@@ -231,59 +236,63 @@ export default function LeadershipMCQScreen() {
       ======================================================== */}
       {mode === 'SELECT_PAPER' && (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerHero}>
-            <View style={styles.badgeTop}>
-              <Ionicons name="ribbon-outline" size={14} color={Colors.primary} />
-              <Text style={styles.badgeTopText}>40 SCENARIO MCQs PER PAPER</Text>
+          <ResponsiveContainer>
+            <View style={styles.headerHero}>
+              <View style={styles.badgeTop}>
+                <Ionicons name="ribbon-outline" size={14} color={Colors.primary} />
+                <Text style={styles.badgeTopText}>40 SCENARIO MCQs PER PAPER</Text>
+              </View>
+              <Text style={styles.heroTitle}>Leadership & Behavioral Assessments</Text>
+              <Text style={styles.heroSubtitle}>
+                Master situational engineering judgment. Choose a calibrated paper or test your executive problem-solving with random papers.
+              </Text>
+
+              <TouchableOpacity style={styles.randomBtn} onPress={handleRandomPaper} activeOpacity={0.85}>
+                <Ionicons name="shuffle" size={18} color="#070C12" />
+                <Text style={styles.randomBtnText}>Start Random 40-Question Paper</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.heroTitle}>Leadership & Behavioral Assessments</Text>
-            <Text style={styles.heroSubtitle}>
-              Master situational engineering judgment. Choose a calibrated paper or test your executive problem-solving with random papers.
-            </Text>
 
-            <TouchableOpacity style={styles.randomBtn} onPress={handleRandomPaper} activeOpacity={0.85}>
-              <Ionicons name="shuffle" size={18} color="#070C12" />
-              <Text style={styles.randomBtnText}>Start Random 40-Question Paper</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.sectionHeading}>Available Papers (Select Level)</Text>
 
-          <Text style={styles.sectionHeading}>Available Papers (Select Level)</Text>
+            <View style={isLargeScreen ? styles.papersDesktopGrid : undefined}>
+              {LEADERSHIP_PAPERS.map((paper) => (
+                <TouchableOpacity
+                  key={paper.id}
+                  style={[styles.paperCard, isLargeScreen && styles.paperCardDesktop]}
+                  onPress={() => handleStartPaper(paper)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.paperHeaderRow}>
+                    <View style={styles.paperNumberBadge}>
+                      <Text style={styles.paperNumberText}>PAPER {paper.paperNumber}</Text>
+                    </View>
+                    <View style={[styles.levelPill, paper.level === 'Internship' ? styles.levelIntern : paper.level === 'Enterprise' ? styles.levelEnterprise : styles.levelMid]}>
+                      <Text style={styles.levelPillText}>{paper.levelBadge}</Text>
+                    </View>
+                  </View>
 
-          {LEADERSHIP_PAPERS.map((paper) => (
-            <TouchableOpacity
-              key={paper.id}
-              style={styles.paperCard}
-              onPress={() => handleStartPaper(paper)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.paperHeaderRow}>
-                <View style={styles.paperNumberBadge}>
-                  <Text style={styles.paperNumberText}>PAPER {paper.paperNumber}</Text>
-                </View>
-                <View style={[styles.levelPill, paper.level === 'Internship' ? styles.levelIntern : paper.level === 'Enterprise' ? styles.levelEnterprise : styles.levelMid]}>
-                  <Text style={styles.levelPillText}>{paper.levelBadge}</Text>
-                </View>
-              </View>
+                  <Text style={styles.paperTitle}>{paper.title}</Text>
+                  <Text style={styles.paperDesc}>{paper.description}</Text>
 
-              <Text style={styles.paperTitle}>{paper.title}</Text>
-              <Text style={styles.paperDesc}>{paper.description}</Text>
-
-              <View style={styles.paperFooter}>
-                <View style={styles.footerItem}>
-                  <Ionicons name="help-circle-outline" size={15} color={Colors.textSecondary} />
-                  <Text style={styles.footerItemText}>{paper.questionsCount} Questions</Text>
-                </View>
-                <View style={styles.footerItem}>
-                  <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
-                  <Text style={styles.footerItemText}>~{paper.timeEstimateMinutes} mins</Text>
-                </View>
-                <View style={styles.startArrow}>
-                  <Text style={styles.startArrowText}>Start</Text>
-                  <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+                  <View style={styles.paperFooter}>
+                    <View style={styles.footerItem}>
+                      <Ionicons name="help-circle-outline" size={15} color={Colors.textSecondary} />
+                      <Text style={styles.footerItemText}>{paper.questionsCount} Questions</Text>
+                    </View>
+                    <View style={styles.footerItem}>
+                      <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
+                      <Text style={styles.footerItemText}>~{paper.timeEstimateMinutes} mins</Text>
+                    </View>
+                    <View style={styles.startArrow}>
+                      <Text style={styles.startArrowText}>Start</Text>
+                      <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ResponsiveContainer>
         </ScrollView>
       )}
 
@@ -645,6 +654,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     marginTop: Spacing.sm,
   },
+  papersDesktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    width: '100%',
+  },
   paperCard: {
     backgroundColor: '#0F1722',
     borderRadius: BorderRadius.lg,
@@ -652,6 +667,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1E293B',
     marginBottom: Spacing.md,
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  paperCardDesktop: {
+    width: '48.8%',
+    marginBottom: 0,
   },
   paperHeaderRow: {
     flexDirection: 'row',

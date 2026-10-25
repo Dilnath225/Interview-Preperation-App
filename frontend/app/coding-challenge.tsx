@@ -25,6 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import { api } from '../src/services/api';
 import { useNotifications } from '../src/context';
 
@@ -87,6 +89,8 @@ interface TestResult {
 export default function CodingChallengeScreen() {
   const router = useRouter();
   const { addNotification } = useNotifications();
+  const { isDesktop, isTablet } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
 
   // Screen View State
   const [currentView, setCurrentView] = useState<ScreenView>('launcher');
@@ -467,82 +471,91 @@ export default function CodingChallengeScreen() {
         <Header title="Technical Assessment" showBack />
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Hero Banner */}
-          <View style={styles.heroBanner}>
-            <View style={styles.heroBadge}>
-              <Ionicons name="terminal" size={14} color={Colors.primary} />
-              <Text style={styles.heroBadgeText}>ENTERPRISE TECHNICAL ASSESSMENT</Text>
-            </View>
-
-            <Text style={styles.heroTitle}>Tailored Coding Assessment</Text>
-            <Text style={styles.heroSubtitle}>
-              Select your career track and experience level. Assessment questions are strictly calibrated so interns receive foundational logic without complex DSA, while DevOps and QA engineers get practical domain tasks.
-            </Text>
-
-            {/* 1. Track / Career Role Selector */}
-            <View style={styles.selectorSection}>
-              <View style={styles.selectorSectionHeader}>
-                <Ionicons name="briefcase-outline" size={15} color={Colors.primary} />
-                <Text style={styles.selectorSectionTitle}>1. Target Role & Domain Track</Text>
+          <ResponsiveContainer maxWidth={1080}>
+            {/* Hero Banner */}
+            <View style={styles.heroBanner}>
+              <View style={styles.heroBadge}>
+                <Ionicons name="terminal" size={14} color={Colors.primary} />
+                <Text style={styles.heroBadgeText}>ENTERPRISE TECHNICAL ASSESSMENT</Text>
               </View>
-              <View style={styles.roleGrid}>
-                {CAREER_ROLES.map(role => {
-                  const isSelected = selectedRole === role.id;
-                  return (
-                    <TouchableOpacity
-                      key={role.id}
-                      style={[styles.roleCard, isSelected && styles.roleCardSelected]}
-                      onPress={() => setSelectedRole(role.id as RoleId)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.roleCardHeader}>
-                        <View style={[styles.roleIconBox, isSelected && styles.roleIconBoxSelected]}>
-                          <Ionicons
-                            name={role.icon as any}
-                            size={18}
-                            color={isSelected ? Colors.background : Colors.primary}
-                          />
+
+              <Text style={styles.heroTitle}>Tailored Coding Assessment</Text>
+              <Text style={styles.heroSubtitle}>
+                Select your career track and experience level. Assessment questions are strictly calibrated so interns receive foundational logic without complex DSA, while DevOps and QA engineers get practical domain tasks.
+              </Text>
+
+              {/* 1. Track / Career Role Selector */}
+              <View style={styles.selectorSection}>
+                <View style={styles.selectorSectionHeader}>
+                  <Ionicons name="briefcase-outline" size={15} color={Colors.primary} />
+                  <Text style={styles.selectorSectionTitle}>1. Target Role & Domain Track</Text>
+                </View>
+                <View style={[styles.roleGrid, isLargeScreen && styles.rolesDesktopGrid]}>
+                  {CAREER_ROLES.map(role => {
+                    const isSelected = selectedRole === role.id;
+                    return (
+                      <TouchableOpacity
+                        key={role.id}
+                        style={[
+                          styles.roleCard,
+                          isLargeScreen && styles.roleCardDesktop,
+                          isSelected && styles.roleCardSelected,
+                        ]}
+                        onPress={() => setSelectedRole(role.id as RoleId)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.roleCardHeader}>
+                          <View style={[styles.roleIconBox, isSelected && styles.roleIconBoxSelected]}>
+                            <Ionicons
+                              name={role.icon as any}
+                              size={18}
+                              color={isSelected ? Colors.background : Colors.primary}
+                            />
+                          </View>
+                          <Text style={[styles.roleTag, isSelected && styles.roleTagSelected]}>{role.tag}</Text>
                         </View>
-                        <Text style={[styles.roleTag, isSelected && styles.roleTagSelected]}>{role.tag}</Text>
-                      </View>
-                      <Text style={[styles.roleTitle, isSelected && styles.roleTitleSelected]}>{role.label}</Text>
-                      <Text style={[styles.roleDesc, isSelected && styles.roleDescSelected]}>{role.desc}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <Text style={[styles.roleTitle, isSelected && styles.roleTitleSelected]}>{role.label}</Text>
+                        <Text style={[styles.roleDesc, isSelected && styles.roleDescSelected]}>{role.desc}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
 
-            {/* 2. Experience Level Selector */}
-            <View style={styles.selectorSection}>
-              <View style={styles.selectorSectionHeader}>
-                <Ionicons name="school-outline" size={15} color={Colors.warning} />
-                <Text style={styles.selectorSectionTitle}>2. Experience Level</Text>
+              {/* 2. Experience Level Selector */}
+              <View style={styles.selectorSection}>
+                <View style={styles.selectorSectionHeader}>
+                  <Ionicons name="school-outline" size={15} color={Colors.warning} />
+                  <Text style={styles.selectorSectionTitle}>2. Experience Level</Text>
+                </View>
+                <View style={[styles.levelRow, isLargeScreen && styles.levelsDesktopGrid]}>
+                  {EXPERIENCE_LEVELS.map(lvl => {
+                    const isSelected = selectedLevel === lvl.id;
+                    return (
+                      <TouchableOpacity
+                        key={lvl.id}
+                        style={[
+                          styles.levelCard,
+                          isLargeScreen && styles.levelCardDesktop,
+                          isSelected && styles.levelCardSelected,
+                        ]}
+                        onPress={() => setSelectedLevel(lvl.id as LevelId)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <Ionicons
+                            name={lvl.icon as any}
+                            size={16}
+                            color={isSelected ? Colors.background : Colors.warning}
+                          />
+                          <Text style={[styles.levelTitle, isSelected && styles.levelTitleSelected]}>{lvl.label}</Text>
+                        </View>
+                        <Text style={[styles.levelDesc, isSelected && styles.levelDescSelected]}>{lvl.desc}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-              <View style={styles.levelRow}>
-                {EXPERIENCE_LEVELS.map(lvl => {
-                  const isSelected = selectedLevel === lvl.id;
-                  return (
-                    <TouchableOpacity
-                      key={lvl.id}
-                      style={[styles.levelCard, isSelected && styles.levelCardSelected]}
-                      onPress={() => setSelectedLevel(lvl.id as LevelId)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <Ionicons
-                          name={lvl.icon as any}
-                          size={16}
-                          color={isSelected ? Colors.background : Colors.warning}
-                        />
-                        <Text style={[styles.levelTitle, isSelected && styles.levelTitleSelected]}>{lvl.label}</Text>
-                      </View>
-                      <Text style={[styles.levelDesc, isSelected && styles.levelDescSelected]}>{lvl.desc}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
 
             {/* 3. Programming Language Selector */}
             <View style={styles.selectorSection}>
@@ -742,6 +755,7 @@ export default function CodingChallengeScreen() {
               </TouchableOpacity>
             ))
           )}
+          </ResponsiveContainer>
         </ScrollView>
       </SafeAreaView>
     );
@@ -1426,12 +1440,23 @@ const styles = StyleSheet.create({
   selectorSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   selectorSectionTitle: { fontSize: 13, fontWeight: Typography.bold, color: Colors.textPrimary },
   roleGrid: { gap: 8 },
+  rolesDesktopGrid: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
+  },
   roleCard: {
     backgroundColor: '#0F1824',
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1,
     borderColor: '#1A293D',
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  roleCardDesktop: {
+    flex: 1,
+    width: undefined,
   },
   roleCardSelected: {
     backgroundColor: 'rgba(0, 245, 212, 0.08)',
@@ -1472,12 +1497,23 @@ const styles = StyleSheet.create({
   roleDesc: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
   roleDescSelected: { color: Colors.textPrimary },
   levelRow: { gap: 8 },
+  levelsDesktopGrid: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
+  },
   levelCard: {
     backgroundColor: '#0F1824',
     borderRadius: BorderRadius.md,
     padding: 10,
     borderWidth: 1,
     borderColor: '#1A293D',
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  levelCardDesktop: {
+    flex: 1,
+    width: undefined,
   },
   levelCardSelected: {
     backgroundColor: 'rgba(251, 191, 36, 0.08)',

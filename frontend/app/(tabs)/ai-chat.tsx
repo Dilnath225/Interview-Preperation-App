@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Header } from '../../src/components/Header';
 import { api } from '../../src/services/api';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 // Dynamic loaders for media pickers to ensure safe runtime compatibility
 const getImagePicker = () => {
@@ -71,6 +72,9 @@ const DEFAULT_GREETING: MessageItem = {
 };
 
 export default function AIChatScreen() {
+  const { isDesktop, isTablet } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
+
   const [messages, setMessages] = useState<MessageItem[]>([DEFAULT_GREETING]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -314,12 +318,13 @@ export default function AIChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.content}
       >
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={styles.chatScroll}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
+        <View style={[styles.chatBoxWrapper, isLargeScreen && styles.chatBoxDesktop]}>
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={styles.chatScroll}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
           {messages.map((msg) => (
             <View
               key={msg.id}
@@ -468,31 +473,38 @@ export default function AIChatScreen() {
             <Ionicons name="document-attach-outline" size={22} color={Colors.primary} />
           </TouchableOpacity>
 
-          <TextInput
-            style={styles.input}
-            placeholder={selectedAttachment ? "Add a question about this attachment..." : "Ask your LLM mentor anything..."}
-            placeholderTextColor={Colors.textMuted}
-            value={inputText}
-            onChangeText={setInputText}
-            editable={!isLoading}
-            onSubmitEditing={() => handleSend()}
-          />
+            <TextInput
+              style={styles.input}
+              placeholder={selectedAttachment ? "Add a question about this attachment..." : "Ask your LLM mentor anything..."}
+              placeholderTextColor={Colors.textMuted}
+              value={inputText}
+              onChangeText={setInputText}
+              editable={!isLoading}
+              onSubmitEditing={() => handleSend()}
+              onKeyPress={(e: any) => {
+                if (Platform.OS === 'web' && e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
+                  e.preventDefault?.();
+                  handleSend();
+                }
+              }}
+            />
 
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!inputText.trim() && !selectedAttachment) || isLoading ? styles.sendButtonDisabled : null,
-            ]}
-            onPress={() => handleSend()}
-            disabled={(!inputText.trim() && !selectedAttachment) || isLoading}
-            activeOpacity={0.8}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#070C12" />
-            ) : (
-              <Ionicons name="arrow-up" size={20} color="#070C12" />
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!inputText.trim() && !selectedAttachment) || isLoading ? styles.sendButtonDisabled : null,
+              ]}
+              onPress={() => handleSend()}
+              disabled={(!inputText.trim() && !selectedAttachment) || isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#070C12" />
+              ) : (
+                <Ionicons name="arrow-up" size={20} color="#070C12" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -507,10 +519,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'space-between',
+    width: '100%',
+  },
+  chatBoxWrapper: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  chatBoxDesktop: {
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#162232',
   },
   chatScroll: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    paddingBottom: 20,
   },
   messageRow: {
     flexDirection: 'row',
@@ -540,6 +567,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 4,
+  },
+  messageBubbleDesktop: {
+    maxWidth: 680,
   },
   aiBubble: {
     backgroundColor: '#101824',

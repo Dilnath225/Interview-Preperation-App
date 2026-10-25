@@ -20,6 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import { useAuth } from '../src/context/AuthContext';
 
 const POPULAR_ROLES = [
@@ -168,9 +170,10 @@ export default function SignUpScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* STEP 1: REGISTRATION FORM */}
-          {step === 'form' ? (
-            <>
+          <ResponsiveContainer maxWidth={500}>
+            {/* STEP 1: REGISTRATION FORM */}
+            {step === 'form' ? (
+              <>
               {/* Header Icon */}
               <View style={styles.iconContainer}>
                 <View style={styles.iconCircle}>
@@ -360,6 +363,7 @@ export default function SignUpScreen() {
               </View>
             </View>
           )}
+          </ResponsiveContainer>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -20,6 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
+import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { useResponsive } from '../src/hooks/useResponsive';
 import { useAuth } from '../src/context/AuthContext';
 
 export default function SignInScreen() {
@@ -134,125 +136,127 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Sparkle Icon */}
-          <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="sparkles" size={30} color={Colors.primary} />
-            </View>
-          </View>
-
-          {/* Heading */}
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>
-            Your AI interview mentor is ready to help you excel.
-          </Text>
-
-          {requireOtp ? (
-            /* OTP CONFIRMATION BOX FOR UNVERIFIED ACCOUNTS */
-            <View style={styles.otpCard}>
-              <View style={styles.otpHeaderRow}>
-                <Ionicons name="shield-checkmark" size={24} color={Colors.primary} />
-                <Text style={styles.otpTitle}>Email Verification</Text>
+          <ResponsiveContainer maxWidth={460}>
+            {/* Sparkle Icon */}
+            <View style={styles.iconContainer}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="sparkles" size={30} color={Colors.primary} />
               </View>
-              <Text style={styles.otpDesc}>
-                Enter the 6-digit verification code sent to <Text style={{ color: Colors.primary, fontWeight: '700' }}>{email}</Text>:
-              </Text>
+            </View>
 
-              <TextInput
-                style={styles.otpInput}
-                placeholder="• • • • • •"
-                placeholderTextColor="#3A4D66"
-                value={otpCode}
-                onChangeText={(text) => setOtpCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-                textAlign="center"
-              />
+            {/* Heading */}
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>
+              Your AI interview mentor is ready to help you excel.
+            </Text>
 
-              <Button
-                title={verifyingOtp ? 'Verifying...' : 'Confirm & Sign In'}
-                onPress={handleVerifyOtp}
-                loading={verifyingOtp}
-                variant="primary"
-                style={{ width: '100%', marginBottom: Spacing.md }}
-              />
+            {requireOtp ? (
+              /* OTP CONFIRMATION BOX FOR UNVERIFIED ACCOUNTS */
+              <View style={styles.otpCard}>
+                <View style={styles.otpHeaderRow}>
+                  <Ionicons name="shield-checkmark" size={24} color={Colors.primary} />
+                  <Text style={styles.otpTitle}>Email Verification</Text>
+                </View>
+                <Text style={styles.otpDesc}>
+                  Enter the 6-digit verification code sent to <Text style={{ color: Colors.primary, fontWeight: '700' }}>{email}</Text>:
+                </Text>
 
-              <View style={styles.otpFooterRow}>
-                {canResend ? (
+                <TextInput
+                  style={styles.otpInput}
+                  placeholder="• • • • • •"
+                  placeholderTextColor="#3A4D66"
+                  value={otpCode}
+                  onChangeText={(text) => setOtpCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  textAlign="center"
+                />
+
+                <Button
+                  title={verifyingOtp ? 'Verifying...' : 'Confirm & Sign In'}
+                  onPress={handleVerifyOtp}
+                  loading={verifyingOtp}
+                  variant="primary"
+                  style={{ width: '100%', marginBottom: Spacing.md }}
+                />
+
+                <View style={styles.otpFooterRow}>
+                  {canResend ? (
+                    <TouchableOpacity
+                      onPress={handleResendOtp}
+                      disabled={resending}
+                      activeOpacity={0.7}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      {resending ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <>
+                          <Ionicons name="refresh-outline" size={15} color={Colors.primary} />
+                          <Text style={styles.resendText}>Resend Code</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.timerText}>
+                      Resend code in <Text style={{ color: Colors.primary }}>{resendCountdown}s</Text>
+                    </Text>
+                  )}
+
                   <TouchableOpacity
-                    onPress={handleResendOtp}
-                    disabled={resending}
+                    onPress={() => setRequireOtp(false)}
                     activeOpacity={0.7}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                   >
-                    {resending ? (
-                      <ActivityIndicator size="small" color={Colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="refresh-outline" size={15} color={Colors.primary} />
-                        <Text style={styles.resendText}>Resend Code</Text>
-                      </>
-                    )}
+                    <Text style={styles.backToLoginText}>Back to Sign In</Text>
                   </TouchableOpacity>
-                ) : (
-                  <Text style={styles.timerText}>
-                    Resend code in <Text style={{ color: Colors.primary }}>{resendCountdown}s</Text>
-                  </Text>
-                )}
-
-                <TouchableOpacity
-                  onPress={() => setRequireOtp(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.backToLoginText}>Back to Sign In</Text>
-                </TouchableOpacity>
+                </View>
               </View>
+            ) : (
+              /* STANDARD SIGN IN FORM */
+              <View style={styles.form}>
+                <Input
+                  label="EMAIL ADDRESS"
+                  icon="mail-outline"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <Input
+                  label="PASSWORD"
+                  icon="lock-closed-outline"
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  isPassword
+                />
+
+
+                {/* Sign In Button */}
+                <Button
+                  title="Sign In"
+                  onPress={handleSignIn}
+                  loading={loading}
+                  variant="primary"
+                  style={styles.signInButton}
+                />
+              </View>
+            )}
+
+            {/* Footer Register Link */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <TouchableOpacity
+                onPress={() => router.push('/sign-up')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.registerLink}>Register with Email</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            /* STANDARD SIGN IN FORM */
-            <View style={styles.form}>
-              <Input
-                label="EMAIL ADDRESS"
-                icon="mail-outline"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Input
-                label="PASSWORD"
-                icon="lock-closed-outline"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                isPassword
-              />
-
-
-              {/* Sign In Button */}
-              <Button
-                title="Sign In"
-                onPress={handleSignIn}
-                loading={loading}
-                variant="primary"
-                style={styles.signInButton}
-              />
-            </View>
-          )}
-
-          {/* Footer Register Link */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity
-              onPress={() => router.push('/sign-up')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.registerLink}>Register with Email</Text>
-            </TouchableOpacity>
-          </View>
+          </ResponsiveContainer>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

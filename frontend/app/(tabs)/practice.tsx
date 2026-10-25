@@ -29,6 +29,8 @@ import { Header } from '../../src/components/Header';
 import { Button } from '../../src/components/Button';
 import { AudioWaveform } from '../../src/components/AudioWaveform';
 import { ProgressRing } from '../../src/components/ProgressRing';
+import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { useResponsive } from '../../src/hooks/useResponsive';
 import { speechManager } from '../../src/utils/speechRecognition';
 import { api } from '../../src/services/api';
 import { useNotifications } from '../../src/context';
@@ -104,6 +106,8 @@ export default function PracticeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { addNotification } = useNotifications();
+  const { isDesktop, isTablet } = useResponsive();
+  const isLargeScreen = isDesktop || isTablet;
 
   // Speech Studio State
   const [studioVisible, setStudioVisible] = useState(false);
@@ -590,117 +594,121 @@ export default function PracticeScreen() {
       <Header title="Practice Drills" />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Top Active Drill Banner: AI Speech & Pronunciation Studio */}
-        <TouchableOpacity
-          style={styles.speechDrillCard}
-          onPress={() => setStudioVisible(true)}
-          activeOpacity={0.92}
-        >
-          <View style={styles.speechHeader}>
-            <View style={styles.tagBadge}>
-              <Text style={styles.tagText}>LIVE AI SPEECH STUDIO</Text>
+        <ResponsiveContainer>
+          {/* Top Active Drill Banner: AI Speech & Pronunciation Studio */}
+          <TouchableOpacity
+            style={styles.speechDrillCard}
+            onPress={() => setStudioVisible(true)}
+            activeOpacity={0.92}
+          >
+            <View style={styles.speechHeader}>
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagText}>LIVE AI SPEECH STUDIO</Text>
+              </View>
+              <Ionicons name="mic" size={20} color={Colors.primary} />
             </View>
-            <Ionicons name="mic" size={20} color={Colors.primary} />
-          </View>
 
-          <Text style={styles.drillMainTitle}>Analyze Your Speech & Pronunciation</Text>
-          <Text style={styles.drillSubtitle}>
-            Live Speech-to-Text dictation & LLM Vocal Coach. Speak into your mic to test pronunciation accuracy, pacing, and filler word detection.
-          </Text>
+            <Text style={styles.drillMainTitle}>Analyze Your Speech & Pronunciation</Text>
+            <Text style={styles.drillSubtitle}>
+              Live Speech-to-Text dictation & LLM Vocal Coach. Speak into your mic to test pronunciation accuracy, pacing, and filler word detection.
+            </Text>
 
-          {/* Glowing Center Record Visual -> Opens Studio */}
-          <View style={styles.recordCircleContainer}>
-            <View style={styles.recordOuterGlow}>
+            {/* Glowing Center Record Visual -> Opens Studio */}
+            <View style={styles.recordCircleContainer}>
+              <View style={styles.recordOuterGlow}>
+                <TouchableOpacity
+                  style={styles.recordInnerBtn}
+                  onPress={() => setStudioVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="mic" size={28} color={Colors.primary} />
+                  <Text style={styles.recordBtnText}>START STUDIO</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Pronunciation Accuracy & Action Row */}
+            <View style={styles.scoreRow}>
+              <View>
+                <Text style={styles.scoreLabel}>LATEST PRONUNCIATION ACCURACY</Text>
+                <Text style={styles.scoreValue}>{latestAccuracy}%</Text>
+              </View>
               <TouchableOpacity
-                style={styles.recordInnerBtn}
+                style={styles.openStudioPill}
                 onPress={() => setStudioVisible(true)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="mic" size={28} color={Colors.primary} />
-                <Text style={styles.recordBtnText}>START STUDIO</Text>
+                <Text style={styles.openStudioPillText}>Open AI Coach</Text>
+                <Ionicons name="arrow-forward" size={14} color="#070C12" />
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {/* Pronunciation Accuracy & Action Row */}
-          <View style={styles.scoreRow}>
-            <View>
-              <Text style={styles.scoreLabel}>LATEST PRONUNCIATION ACCURACY</Text>
-              <Text style={styles.scoreValue}>{latestAccuracy}%</Text>
-            </View>
+          {/* Practice Modes Navigation */}
+          <Text style={styles.sectionHeading}>Practice Modes</Text>
+
+          <View style={isLargeScreen ? styles.modesDesktopGrid : undefined}>
             <TouchableOpacity
-              style={styles.openStudioPill}
-              onPress={() => setStudioVisible(true)}
+              style={[styles.modeCard, isLargeScreen && styles.modeCardDesktop]}
+              onPress={() => router.push('/coding-challenge')}
               activeOpacity={0.8}
             >
-              <Text style={styles.openStudioPillText}>Open AI Coach</Text>
-              <Ionicons name="arrow-forward" size={14} color="#070C12" />
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
+                <Ionicons name="code-working-outline" size={24} color={Colors.primary} />
+              </View>
+              <View style={styles.modeInfo}>
+                <Text style={styles.modeTitle}>Coding Challenges</Text>
+                <Text style={styles.modeSubtitle}>Multi-language DSA, algorithmic sandbox & tests</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modeCard, isLargeScreen && styles.modeCardDesktop]}
+              onPress={() => router.push('/mock-interview')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 179, 0, 0.12)' }]}>
+                <Ionicons name="chatbubbles-outline" size={24} color={Colors.warning} />
+              </View>
+              <View style={styles.modeInfo}>
+                <Text style={styles.modeTitle}>Behavioral Video Interview</Text>
+                <Text style={styles.modeSubtitle}>STAR method storytelling with proctoring & AI feedback</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modeCard, isLargeScreen && styles.modeCardDesktop]}
+              onPress={() => router.push('/leadership-mcq')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
+                <Ionicons name="ribbon-outline" size={24} color={Colors.primary} />
+              </View>
+              <View style={styles.modeInfo}>
+                <Text style={styles.modeTitle}>Leadership MCQs (40 Questions)</Text>
+                <Text style={styles.modeSubtitle}>5 tiered papers (90-min auto-submit limit) from Internship to Executive</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modeCard, isLargeScreen && styles.modeCardDesktop]}
+              onPress={() => router.push('/resume-review')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
+                <Ionicons name="document-text-outline" size={24} color="#00E676" />
+              </View>
+              <View style={styles.modeInfo}>
+                <Text style={styles.modeTitle}>Resume Diagnostic</Text>
+                <Text style={styles.modeSubtitle}>ATS optimization, keyword density & rubric scoring</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-
-        {/* Practice Modes Navigation */}
-        <Text style={styles.sectionHeading}>Practice Modes</Text>
-
-        <TouchableOpacity
-          style={styles.modeCard}
-          onPress={() => router.push('/coding-challenge')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
-            <Ionicons name="code-working-outline" size={24} color={Colors.primary} />
-          </View>
-          <View style={styles.modeInfo}>
-            <Text style={styles.modeTitle}>Coding Challenges</Text>
-            <Text style={styles.modeSubtitle}>Multi-language DSA, algorithmic sandbox & tests</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.modeCard}
-          onPress={() => router.push('/mock-interview')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 179, 0, 0.12)' }]}>
-            <Ionicons name="chatbubbles-outline" size={24} color={Colors.warning} />
-          </View>
-          <View style={styles.modeInfo}>
-            <Text style={styles.modeTitle}>Behavioral Video Interview</Text>
-            <Text style={styles.modeSubtitle}>STAR method storytelling with proctoring & AI feedback</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.modeCard}
-          onPress={() => router.push('/leadership-mcq')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 245, 212, 0.12)' }]}>
-            <Ionicons name="ribbon-outline" size={24} color={Colors.primary} />
-          </View>
-          <View style={styles.modeInfo}>
-            <Text style={styles.modeTitle}>Leadership MCQs (40 Questions)</Text>
-            <Text style={styles.modeSubtitle}>5 tiered papers (90-min auto-submit limit) from Internship to Executive</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.modeCard}
-          onPress={() => router.push('/resume-review')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.iconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
-            <Ionicons name="document-text-outline" size={24} color="#00E676" />
-          </View>
-          <View style={styles.modeInfo}>
-            <Text style={styles.modeTitle}>Resume Diagnostic</Text>
-            <Text style={styles.modeSubtitle}>ATS optimization, keyword density & rubric scoring</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* ========================================================
@@ -1165,6 +1173,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 245, 212, 0.25)',
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   speechHeader: {
     flexDirection: 'row',
@@ -1270,6 +1280,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
+  modesDesktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    width: '100%',
+  },
   modeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1279,6 +1295,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1C293A',
     marginBottom: Spacing.md,
+    width: '100%',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  modeCardDesktop: {
+    width: '48.8%',
+    marginBottom: 0,
   },
   iconBox: {
     width: 44,

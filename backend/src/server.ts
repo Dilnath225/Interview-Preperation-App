@@ -11,7 +11,7 @@ async function startServer() {
   try {
     // 1. Connect to Database
     await prisma.$connect();
-    console.log('✅ Connected to SQLite database via Prisma ORM.');
+    console.log('✅ Connected to PostgreSQL database via Prisma ORM.');
 
     // 2. Seed initial data
     await AuthService.seedDemoUser();
