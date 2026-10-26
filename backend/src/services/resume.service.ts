@@ -415,10 +415,9 @@ Respond ONLY with a valid, raw JSON object (no markdown code blocks, no backtick
 }`;
 
     const candidateModels = [
-      'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
-      'gemini-flash-latest',
-      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
     ];
 
     let text: string | null = null;
@@ -433,7 +432,7 @@ Respond ONLY with a valid, raw JSON object (no markdown code blocks, no backtick
               temperature: 0.2,
             },
           },
-          { timeout: 35000 }
+          { timeout: 15000 }
         );
         text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (text) break;

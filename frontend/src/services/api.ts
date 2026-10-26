@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const CURRENT_LAN_IP = '192.168.1.178';
+const CURRENT_LAN_IP = '172.20.10.5';
 
 const getBaseUrl = (): string => {
   if (Platform.OS === 'web') {
@@ -14,6 +14,11 @@ const getBaseUrl = (): string => {
       }
       return `http://${host}:5000/api`;
     }
+    return `http://${CURRENT_LAN_IP}:5000/api`;
+  }
+
+  // If CURRENT_LAN_IP is set, use it directly so Windows WSL internal virtual IP doesn't hijack it
+  if (CURRENT_LAN_IP && CURRENT_LAN_IP.trim() !== '') {
     return `http://${CURRENT_LAN_IP}:5000/api`;
   }
 
@@ -30,7 +35,10 @@ const getBaseUrl = (): string => {
     if (typeof candidate === 'string') {
       const match = candidate.match(/(?:exp:\/\/|https?:\/\/)?([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/);
       if (match && match[1] && match[1] !== '127.0.0.1') {
-        return `http://${match[1]}:5000/api`;
+        // Skip WSL internal virtual adapters (172.30.x, 172.28.x, 172.29.x)
+        if (!match[1].startsWith('172.30.') && !match[1].startsWith('172.28.') && !match[1].startsWith('172.29.')) {
+          return `http://${match[1]}:5000/api`;
+        }
       }
     }
   }
@@ -72,23 +80,23 @@ const storage = {
     if (Platform.OS === 'web') {
       try {
         if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
-      } catch (e) {}
+      } catch (e) { }
       return;
     }
     try {
       await SecureStore.setItemAsync(key, value);
-    } catch (e) {}
+    } catch (e) { }
   },
   async removeItem(key: string): Promise<void> {
     if (Platform.OS === 'web') {
       try {
         if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
-      } catch (e) {}
+      } catch (e) { }
       return;
     }
     try {
       await SecureStore.deleteItemAsync(key);
-    } catch (e) {}
+    } catch (e) { }
   },
 };
 
@@ -293,7 +301,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append('sessionId', sessionId);
     formData.append('questionId', questionId);
-    
+
     if (Platform.OS === 'web') {
       try {
         const response = await fetch(audioUri);
@@ -516,7 +524,7 @@ class ApiClient {
     jobDescription?: string
   ) {
     const formData = new FormData();
-    
+
     if (Platform.OS === 'web') {
       if (file.file) {
         formData.append('resume', file.file, file.name || 'resume.pdf');
@@ -545,7 +553,7 @@ class ApiClient {
     if (targetRole) formData.append('targetRole', targetRole);
     if (industry) formData.append('industry', industry);
     if (jobDescription) formData.append('jobDescription', jobDescription);
-    
+
     return this.request<any>('post', '/resume/analyze', formData);
   }
 

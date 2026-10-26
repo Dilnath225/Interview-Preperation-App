@@ -27,9 +27,9 @@ export class AIService {
     }
 
     const candidateModels = [
-      'gemini-3.8-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3.5-flash',
-      'gemini-flash-latest',
+      'gemini-3-flash-preview',
     ];
 
     let lastError: any = null;
@@ -39,7 +39,7 @@ export class AIService {
         const response = await axios.post(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ENV.GEMINI_API_KEY}`,
           { contents },
-          { timeout: 25000 }
+          { timeout: 10000 }
         );
 
         const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;

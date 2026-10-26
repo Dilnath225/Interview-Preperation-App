@@ -57,7 +57,8 @@ export class ChatService {
 
     // A. Priority 1: Direct Google Gemini API Call (multimodal image & document understanding)
     if (ENV.GEMINI_API_KEY) {
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+      // Prioritize ultra-low latency responsive models (gemini-3.5-flash-lite / gemini-3.5-flash respond in ~1.5s)
+      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3-flash-preview'];
       const systemPrompt = `You are "AI Mentor", an elite Principal Technical Interviewer and Career Coach specializing in software engineering interviews, architecture, coding problem strategies, and resume critique.
 - If the candidate attached a photo, image, whiteboard sketch, or document, examine it thoroughly and provide direct, actionable technical feedback.
 - If reviewing code or architecture, detail strengths, edge-case vulnerabilities, time/space complexity, and improvements.
@@ -97,7 +98,7 @@ AI Mentor Response:`;
                 },
               ],
             },
-            { timeout: 25000 }
+            { timeout: 10000 }
           );
 
           const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
