@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const CURRENT_LAN_IP = '172.20.10.5';
+const CURRENT_LAN_IP = '192.168.1.11';
 
 const getBaseUrl = (): string => {
   if (Platform.OS === 'web') {

@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { AIService } from './ai.service';
 import { ApiError } from '../utils/apiError';
+import { CertificateService } from './certificate.service';
 
 export interface StartInterviewDTO {
   userId: string;
@@ -199,14 +200,21 @@ export class InterviewService {
     });
 
     // Increment user readiness score
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: session.userId },
       data: {
         readinessScore: {
           increment: 2,
         },
       },
+      select: { id: true, readinessScore: true },
     });
+
+    if ((updatedUser.readinessScore || 0) >= 100) {
+      CertificateService.checkAndIssueForUser(session.userId).catch((err) =>
+        console.warn('[Auto-Certificate] Error generating on interview completion:', err.message)
+      );
+    }
 
     return {
       ...completed,

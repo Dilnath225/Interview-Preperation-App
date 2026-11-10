@@ -2,6 +2,7 @@ import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/apiError';
 import { CodeExecutionService, TestCase } from './codeExecution.service';
 import { AIService } from './ai.service';
+import { CertificateService } from './certificate.service';
 
 export interface CodeSubmissionDTO {
   userId: string;
@@ -707,12 +708,19 @@ export class CodingService {
       },
     });
 
+    const newReadiness = Math.min(100, Math.max(50, Math.round((totalScore + 75) / 2)));
     await prisma.user.update({
       where: { id: userId },
       data: {
-        readinessScore: Math.min(100, Math.max(50, Math.round((totalScore + 75) / 2))),
+        readinessScore: newReadiness,
       },
     });
+
+    if (newReadiness >= 100) {
+      CertificateService.checkAndIssueForUser(userId).catch((err) =>
+        console.warn('[Auto-Certificate] Error generating on assessment completion:', err.message)
+      );
+    }
 
     return {
       assessmentId: updated.id,

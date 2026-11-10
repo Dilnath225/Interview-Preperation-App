@@ -14,7 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
@@ -26,9 +26,11 @@ import { useNotifications } from '../src/context';
 
 export default function LeadershipMCQScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { addNotification } = useNotifications();
-  const { isDesktop, isTablet } = useResponsive();
-  const isLargeScreen = isDesktop || isTablet;
+  const { isDesktop, isTablet, isMobile, width } = useResponsive();
+  const isLargeScreen = isDesktop || (isTablet && width >= 860);
+  const isSmallPhone = width < 375;
 
   // Screen modes: 'SELECT_PAPER' | 'QUIZ' | 'RESULTS'
   const [mode, setMode] = useState<'SELECT_PAPER' | 'QUIZ' | 'RESULTS'>('SELECT_PAPER');
@@ -199,18 +201,19 @@ export default function LeadershipMCQScreen() {
         }}
         rightAction={
           mode === 'QUIZ' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: isSmallPhone ? 4 : 8, flexShrink: 0 }}>
               {/* 90-min Countdown Timer Badge */}
-              <View style={[styles.timerBadge, timeLeftSeconds < 600 && styles.timerBadgeUrgent]}>
+              <View style={[styles.timerBadge, timeLeftSeconds < 600 && styles.timerBadgeUrgent, isSmallPhone && { paddingHorizontal: 6, paddingVertical: 4 }]}>
                 <Ionicons
                   name="time-outline"
-                  size={14}
+                  size={isSmallPhone ? 12 : 14}
                   color={timeLeftSeconds < 600 ? '#FF3B30' : Colors.primary}
                 />
                 <Text
                   style={[
                     styles.timerBadgeText,
                     timeLeftSeconds < 600 && { color: '#FF3B30' },
+                    isSmallPhone && { fontSize: 11 },
                   ]}
                 >
                   {formatTimer(timeLeftSeconds)}
@@ -219,12 +222,12 @@ export default function LeadershipMCQScreen() {
 
               {/* Question Palette Trigger */}
               <TouchableOpacity
-                style={styles.paletteBtn}
+                style={[styles.paletteBtn, isSmallPhone && { paddingHorizontal: 6, paddingVertical: 4 }]}
                 onPress={() => setPaletteVisible(true)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="grid-outline" size={18} color={Colors.primary} />
-                <Text style={styles.paletteBtnText}>{answeredCount}/{totalQuestions}</Text>
+                <Ionicons name="grid-outline" size={isSmallPhone ? 14 : 16} color={Colors.primary} />
+                <Text style={[styles.paletteBtnText, isSmallPhone && { fontSize: 11 }]}>{answeredCount}/{totalQuestions}</Text>
               </TouchableOpacity>
             </View>
           ) : undefined
@@ -357,7 +360,7 @@ export default function LeadershipMCQScreen() {
           </ScrollView>
 
           {/* Sticky Bottom Navigation Bar */}
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             <TouchableOpacity
               style={[styles.navBtn, styles.navBtnPrev, currentIndex === 0 && styles.navBtnDisabled]}
               onPress={handlePrevious}
@@ -768,9 +771,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   quizScrollContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.lg,
-    paddingBottom: 100,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: 110,
   },
   questionMetaRow: {
     flexDirection: 'row',
@@ -875,9 +878,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     backgroundColor: '#070C12',
     borderTopWidth: 1,
     borderTopColor: '#1E293B',
@@ -1133,12 +1136,14 @@ const styles = StyleSheet.create({
   paletteGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     paddingVertical: Spacing.sm,
+    justifyContent: 'space-between',
   },
   paletteGridItem: {
     width: '18%',
     aspectRatio: 1,
+    minWidth: 44,
     backgroundColor: '#1A2332',
     borderRadius: BorderRadius.sm,
     alignItems: 'center',

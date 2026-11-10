@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../constants/theme';
 import { useResponsive } from '../hooks/useResponsive';
@@ -23,8 +24,11 @@ export const CustomTabBar: React.FC<TabBarProps> = ({
   navigation,
 }) => {
   const router = useRouter();
-  const { isMobile } = useResponsive();
+  const insets = useSafeAreaInsets();
+  const { isMobile, width } = useResponsive();
   const isFloating = !isMobile;
+  const bottomInset = Math.max(insets?.bottom || 0, 8);
+  const isSmallPhone = width < 375;
 
   const getTabIcon = (
     routeName: string,
@@ -51,7 +55,7 @@ export const CustomTabBar: React.FC<TabBarProps> = ({
       case 'index':
         return 'HOME';
       case 'interviews':
-        return 'INTERVIEWS';
+        return isSmallPhone ? 'INTERVIEW' : 'INTERVIEWS';
       case 'practice':
         return 'PRACTICE';
       case 'ai-chat':
@@ -65,7 +69,17 @@ export const CustomTabBar: React.FC<TabBarProps> = ({
 
   return (
     <View style={[styles.outerWrapper, isFloating && styles.floatingOuter]}>
-      <View style={[styles.container, isFloating && styles.floatingContainer]}>
+      <View
+        style={[
+          styles.container,
+          isFloating
+            ? styles.floatingContainer
+            : {
+                paddingBottom: bottomInset,
+                height: 52 + bottomInset,
+              },
+        ]}
+      >
         {state.routes.map((route: any, index: number) => {
           const options = descriptors[route.key]?.options || {};
           const isFocused = state.index === index;
@@ -109,8 +123,10 @@ export const CustomTabBar: React.FC<TabBarProps> = ({
                 color={isFocused ? activeColor : inactiveColor}
               />
               <Text
+                numberOfLines={1}
                 style={[
                   styles.tabLabel,
+                  isSmallPhone && styles.tabLabelSmall,
                   { color: isFocused ? activeColor : inactiveColor },
                   isFocused && styles.tabLabelActive,
                 ]}
@@ -184,7 +200,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: Typography.bold,
     marginTop: 3,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+  },
+  tabLabelSmall: {
+    fontSize: 8.5,
+    letterSpacing: 0,
   },
   tabLabelActive: {
     color: Colors.primary,

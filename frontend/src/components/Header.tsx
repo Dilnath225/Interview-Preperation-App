@@ -38,7 +38,9 @@ export const Header: React.FC<HeaderProps> = ({
   const pathname = usePathname();
   const { user } = useAuth();
   const { unreadCount, openNotificationModal } = useNotifications();
-  const { isDesktop, isTablet } = useResponsive();
+  const { isDesktop, isTablet, isMobile, width } = useResponsive();
+  // Only show desktop navigation row when NOT in a focused sub-screen (showBack is false) AND screen width >= 1100
+  const showDesktopNav = !showBack && width >= 1100;
   const isLargeScreen = isDesktop || isTablet;
 
   const handleBack = () => {
@@ -68,10 +70,10 @@ export const Header: React.FC<HeaderProps> = ({
   const desktopNavItems = [
     { label: 'Dashboard', path: '/(tabs)', icon: 'grid-outline' },
     { label: 'Interviews', path: '/(tabs)/interviews', icon: 'videocam-outline' },
-    { label: 'Top Companies', path: '/target-companies', icon: 'business-outline' },
-    { label: 'Leadership MCQs', path: '/leadership-mcq', icon: 'ribbon-outline' },
-    { label: 'Coding Arena', path: '/coding-challenge', icon: 'code-slash-outline' },
-    { label: 'Practice Studio', path: '/(tabs)/practice', icon: 'mic-outline' },
+    { label: 'Companies', path: '/target-companies', icon: 'business-outline' },
+    { label: 'Leadership', path: '/leadership-mcq', icon: 'ribbon-outline' },
+    { label: 'Coding', path: '/coding-challenge', icon: 'code-slash-outline' },
+    { label: 'Practice', path: '/(tabs)/practice', icon: 'mic-outline' },
     { label: 'AI Coach', path: '/(tabs)/ai-chat', icon: 'sparkles-outline' },
     { label: 'ATS Resume', path: '/resume-review', icon: 'document-text-outline' },
   ];
@@ -109,7 +111,13 @@ export const Header: React.FC<HeaderProps> = ({
               activeOpacity={0.8}
               style={styles.brandContainer}
             >
-              <Text style={styles.title}>{title}</Text>
+              <Text
+                style={[styles.title, isMobile && styles.titleMobile]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {title}
+              </Text>
               {isLargeScreen && (
                 <View style={styles.proBadge}>
                   <View style={styles.proDot} />
@@ -119,8 +127,8 @@ export const Header: React.FC<HeaderProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Desktop Navigation Links (shown only on web/tablet/desktop) */}
-          {isLargeScreen && (
+          {/* Desktop Navigation Links (shown only on wide desktop and NOT on focused sub-screens) */}
+          {showDesktopNav && (
             <View style={styles.desktopNavRow}>
               {desktopNavItems.map((item) => {
                 const isActive = pathname === item.path;
@@ -140,6 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
                       color={isActive ? Colors.primary : Colors.textSecondary}
                     />
                     <Text
+                      numberOfLines={1}
                       style={[
                         styles.desktopNavText,
                         isActive && styles.desktopNavTextActive,
@@ -155,7 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Section: Notification & User Pill */}
           <View style={styles.rightSection}>
-            {isLargeScreen && user?.name && (
+            {showDesktopNav && user?.name && (
               <TouchableOpacity
                 onPress={handleAvatar}
                 style={styles.userProfilePill}
@@ -212,31 +221,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    flexShrink: 1,
+    minWidth: 0,
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flexShrink: 1,
+    minWidth: 0,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   avatarContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     overflow: 'hidden',
+    flexShrink: 0,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   avatarBorder: {
     width: '100%',
     height: '100%',
-    borderRadius: 19,
+    borderRadius: 18,
     backgroundColor: Colors.cardElevated,
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -248,6 +262,10 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.textPrimary,
     letterSpacing: -0.3,
+  },
+  titleMobile: {
+    fontSize: 16,
+    maxWidth: 180,
   },
   proBadge: {
     flexDirection: 'row',
@@ -275,18 +293,19 @@ const styles = StyleSheet.create({
   desktopNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 4,
+    flexWrap: 'nowrap',
+    flexShrink: 0,
   },
   desktopNavLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 4,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: BorderRadius.md,
     backgroundColor: 'transparent',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, whiteSpace: 'nowrap' as any } : {}),
   },
   desktopNavLinkActive: {
     backgroundColor: 'rgba(0, 245, 212, 0.12)',
@@ -294,7 +313,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 245, 212, 0.3)',
   },
   desktopNavText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: Typography.medium,
     color: Colors.textSecondary,
   },
@@ -305,7 +324,8 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    flexShrink: 0,
   },
   userProfilePill: {
     flexDirection: 'row',

@@ -9,6 +9,9 @@ import interviewRoutes from './routes/interview.routes';
 import codingRoutes from './routes/coding.routes';
 import resumeRoutes from './routes/resume.routes';
 import chatRoutes from './routes/chat.routes';
+import certificateRoutes from './routes/certificate.routes';
+import companyRoutes from './routes/company.routes';
+import jobRoutes from './routes/job.routes';
 
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -62,6 +65,9 @@ app.use('/api/interviews', interviewRoutes);
 app.use('/api/coding', codingRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/certificates', certificateRoutes);
+app.use('/api/company', companyRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

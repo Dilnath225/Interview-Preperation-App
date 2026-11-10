@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/apiError';
+import { CertificateService } from './certificate.service';
 
 export interface UpdateProfileDTO {
   name?: string;
@@ -149,7 +150,19 @@ export class UserService {
           where: { id: userId },
           data: { readinessScore: computedReadiness },
         })
+        .then(async () => {
+          if (computedReadiness >= 100) {
+            await CertificateService.checkAndIssueForUser(userId).catch((err) =>
+              console.warn('[Auto-Certificate] Error generating on readiness >= 100:', err.message)
+            );
+          }
+        })
         .catch((e) => console.warn('Failed to update readiness score cache:', e.message));
+    } else if (computedReadiness >= 100) {
+      // If already at 100, ensure certificate is issued if not yet generated
+      CertificateService.checkAndIssueForUser(userId).catch((err) =>
+        console.warn('[Auto-Certificate] Error checking certificate for 100 score:', err.message)
+      );
     }
 
     const recentInterviews = await prisma.interviewSession.findMany({

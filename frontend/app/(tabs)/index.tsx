@@ -27,8 +27,9 @@ import { api } from '../../src/services/api';
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { isMobile, isDesktop, isTablet } = useResponsive();
+  const { isMobile, isDesktop, isTablet, width } = useResponsive();
   const isLargeScreen = isDesktop || isTablet;
+  const isSmallPhone = width < 375;
 
   const [stats, setStats] = useState<any>(null);
   const [recentInterviews, setRecentInterviews] = useState<any[]>([]);
@@ -228,7 +229,7 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.progressRingWrapper}>
-                <ProgressRing progress={readinessScore} size={88} strokeWidth={7} />
+                <ProgressRing progress={readinessScore} size={isSmallPhone ? 74 : 88} strokeWidth={6.5} />
               </View>
             </View>
 
@@ -375,24 +376,26 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginBottom: Spacing.xl,
     width: '100%',
   },
   actionCard: {
-    width: '47.5%',
+    flex: 1,
+    minWidth: '47%',
+    maxWidth: '50%',
     backgroundColor: '#101824',
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
+    padding: Spacing.md,
     borderWidth: 1,
     borderColor: '#1C293A',
-    minHeight: 130,
+    minHeight: 122,
     justifyContent: 'space-between',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
   actionCardDesktop: {
     flex: 1,
-    minWidth: 220,
+    minWidth: 200,
     maxWidth: '25%',
   },
   actionCardTop: {
@@ -436,10 +439,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#101824',
     borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
     borderColor: '#1C293A',
     marginBottom: Spacing.lg,
+    gap: Spacing.md,
   },
   progressCardDesktopCol: {
     flex: 1.15,
@@ -457,14 +461,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     letterSpacing: 1,
   },
-  progressLeft: { flex: 1, paddingRight: Spacing.md },
-  progressTitle: { fontSize: 20, fontWeight: Typography.bold, color: Colors.textPrimary, marginBottom: 4 },
-  progressDescription: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+  progressLeft: { flex: 1, paddingRight: Spacing.xs },
+  progressTitle: { fontSize: 18, fontWeight: Typography.bold, color: Colors.textPrimary, marginBottom: 4 },
+  progressDescription: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: Spacing.sm },
   progressRingWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgesRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
+  badgesRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' },
   pillBadgeMuted: { backgroundColor: '#1A2636', paddingVertical: 4, paddingHorizontal: 8, borderRadius: BorderRadius.sm },
   pillBadgeMutedText: { fontSize: 10, fontWeight: Typography.bold, color: Colors.textPrimary },
   pillBadgeSuccess: { backgroundColor: 'rgba(0, 230, 118, 0.15)', paddingVertical: 4, paddingHorizontal: 8, borderRadius: BorderRadius.sm },
