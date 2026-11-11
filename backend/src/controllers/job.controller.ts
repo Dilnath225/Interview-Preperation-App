@@ -106,17 +106,20 @@ export class JobController {
    * Candidate applies to an active job posting
    */
   static applyToJob = async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
-    if (!userId) {
-      throw ApiError.unauthorized('Candidate authentication required.');
-    }
-
     const rawId = req.params.id;
     const jobId = Array.isArray(rawId) ? rawId[0] : rawId;
     const { fullName, email, phone, coverLetter, resumeUrl } = req.body;
 
     if (!fullName || !email) {
       throw ApiError.badRequest('Full Name and Email are required.');
+    }
+
+    let userId = (req as any).user?.id;
+    if (!userId) {
+      // Find candidate by email or create candidate profile for application
+      const normalizedEmail = email.toLowerCase().trim();
+      const existingUser = await JobService.findOrCreateApplicant(normalizedEmail, fullName.trim());
+      userId = existingUser.id;
     }
 
     const application = await JobService.applyToJob(userId, jobId, {

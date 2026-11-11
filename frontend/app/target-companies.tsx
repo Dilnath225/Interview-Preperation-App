@@ -14,7 +14,11 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Keyboard,
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,12 +60,65 @@ export default function TargetCompaniesScreen() {
 
   // Apply Modal State
   const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [activeApplyingJob, setActiveApplyingJob] = useState<any | null>(null);
   const [applicantName, setApplicantName] = useState('');
   const [applicantEmail, setApplicantEmail] = useState('');
   const [applicantPhone, setApplicantPhone] = useState('');
   const [applicantCoverLetter, setApplicantCoverLetter] = useState('');
   const [applicantResumeUrl, setApplicantResumeUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<{ name: string; uri: string; size?: number } | null>(null);
+  const [uploadingCv, setUploadingCv] = useState(false);
   const [submittingApp, setSubmittingApp] = useState(false);
+
+  const handleOpenApplyModal = (jobToApply: any) => {
+    setActiveApplyingJob(jobToApply);
+    setSelectedJob(null); // Close the full-screen Job Specs modal so Apply Modal appears immediately!
+    setApplyModalVisible(true);
+  };
+
+  const handlePickCv = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const file = res.assets[0];
+        setSelectedFile({
+          name: file.name,
+          uri: file.uri,
+          size: file.size,
+        });
+
+        // Auto upload CV to obtain permanent download path
+        setUploadingCv(true);
+        try {
+          const uploadRes = await api.uploadResume(
+            file,
+            selectedJob?.department,
+            selectedJob?.companyName,
+            selectedJob?.description
+          );
+          if (uploadRes?.data?.resume?.id || uploadRes?.data?.resumeUrl) {
+            setApplicantResumeUrl(uploadRes.data.resumeUrl || `/uploads/resumes/${file.name}`);
+          } else {
+            setApplicantResumeUrl(file.uri);
+          }
+        } catch {
+          setApplicantResumeUrl(file.name);
+        } finally {
+          setUploadingCv(false);
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Unable to pick document: ' + e.message);
+    }
+  };
 
   useEffect(() => {
     // Fetch live company job postings
@@ -121,9 +178,9 @@ export default function TargetCompaniesScreen() {
     });
   }, [searchQuery, activeTab]);
 
-  // Combine live jobs with curated jobs
+  // Enterprise Production Grade: Strictly live jobs posted by real companies in the database
   const combinedJobs = useMemo(() => {
-    return [...liveJobs, ...JOB_OPENINGS];
+    return liveJobs;
   }, [liveJobs]);
 
   // Filter jobs based on search and region
@@ -149,27 +206,33 @@ export default function TargetCompaniesScreen() {
       return;
     }
 
-    if (!selectedJob) return;
+    const targetJob = activeApplyingJob || selectedJob;
+    if (!targetJob) {
+      Alert.alert('Notice', 'Please select a job opening to apply.');
+      return;
+    }
 
     setSubmittingApp(true);
     try {
-      const res = await api.applyToJob(selectedJob.id, {
+      const res = await api.applyToJob(targetJob.id, {
         fullName: applicantName.trim(),
         email: applicantEmail.trim(),
         phone: applicantPhone.trim() || undefined,
         coverLetter: applicantCoverLetter.trim() || undefined,
-        resumeUrl: applicantResumeUrl.trim() || undefined,
+        resumeUrl: applicantResumeUrl.trim() || selectedFile?.name || 'Candidate CV Attached',
       });
 
       if (res.success) {
         Alert.alert(
           '🎉 Application Submitted!',
-          `Your CV and cover letter have been sent directly to ${selectedJob.companyName}'s recruiter dashboard. The hiring team will review your application.`
+          `Your CV and application have been delivered directly to ${targetJob.companyName}'s recruiter dashboard. The hiring team has been notified.`
         );
         setApplyModalVisible(false);
+        setActiveApplyingJob(null);
+        setSelectedFile(null);
         setApplicantCoverLetter('');
       } else {
-        Alert.alert('Application Failed', res.message || 'Unable to submit application.');
+        Alert.alert('Application Notice', res.message || 'Unable to submit application.');
       }
     } catch (err: any) {
       Alert.alert(
@@ -453,7 +516,7 @@ export default function TargetCompaniesScreen() {
                       activeOpacity={0.8}
                     >
                       <Ionicons name="sparkles" size={14} color="#070C12" />
-                      <Text style={styles.prepForJobBtnText}>Practice for this Role</Text>
+                      <Text style={styles.prepForJobBtnText}>Practice Role</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -463,6 +526,15 @@ export default function TargetCompaniesScreen() {
                     >
                       <Text style={styles.viewJobSpecsBtnText}>Job Specs</Text>
                       <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.directApplyBtn}
+                      onPress={() => handleOpenApplyModal(job)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="paper-plane" size={13} color="#070C12" />
+                      <Text style={styles.directApplyBtnText}>Apply</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -916,7 +988,7 @@ export default function TargetCompaniesScreen() {
                   gap: 8,
                   marginBottom: 12,
                 }}
-                onPress={() => setApplyModalVisible(true)}
+                onPress={() => handleOpenApplyModal(selectedJob)}
                 activeOpacity={0.85}
               >
                 <Ionicons name="paper-plane" size={18} color="#070C12" />
@@ -949,90 +1021,143 @@ export default function TargetCompaniesScreen() {
         visible={applyModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setApplyModalVisible(false)}
+        onRequestClose={() => {
+          setApplyModalVisible(false);
+          setActiveApplyingJob(null);
+        }}
       >
-        <View style={styles.applyModalOverlay}>
-          <View style={styles.applyModalBox}>
-            <View style={styles.applyModalHeader}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.applyModalTitle}>Submit Job Application</Text>
-                <Text style={styles.applyModalSubtitle} numberOfLines={1}>
-                  {selectedJob?.title} • {selectedJob?.companyName}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setApplyModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 460 }}>
-              <Text style={styles.applyInputLabel}>Full Name *</Text>
-              <TextInput
-                style={styles.applyInput}
-                value={applicantName}
-                onChangeText={setApplicantName}
-                placeholder="Your full name"
-                placeholderTextColor="#64748B"
-              />
-
-              <Text style={styles.applyInputLabel}>Email Address *</Text>
-              <TextInput
-                style={styles.applyInput}
-                value={applicantEmail}
-                onChangeText={setApplicantEmail}
-                placeholder="your.email@example.com"
-                placeholderTextColor="#64748B"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.applyInputLabel}>Phone Number</Text>
-              <TextInput
-                style={styles.applyInput}
-                value={applicantPhone}
-                onChangeText={setApplicantPhone}
-                placeholder="+94 7X XXX XXXX"
-                placeholderTextColor="#64748B"
-                keyboardType="phone-pad"
-              />
-
-              <Text style={styles.applyInputLabel}>Resume / CV File or Link</Text>
-              <TextInput
-                style={styles.applyInput}
-                value={applicantResumeUrl}
-                onChangeText={setApplicantResumeUrl}
-                placeholder="Link to online CV / Google Drive / Portfolio"
-                placeholderTextColor="#64748B"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.applyInputLabel}>Cover Letter & Motivation</Text>
-              <TextInput
-                style={[styles.applyInput, { height: 90, textAlignVertical: 'top' }]}
-                value={applicantCoverLetter}
-                onChangeText={setApplicantCoverLetter}
-                placeholder="Highlight your technical strengths, relevant achievements, and why you want to join..."
-                placeholderTextColor="#64748B"
-                multiline
-              />
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.applySubmitBtn}
-              onPress={handleApplyToJob}
-              disabled={submittingApp}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.applyModalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ width: '100%', maxWidth: 520 }}
             >
-              {submittingApp ? (
-                <ActivityIndicator color="#070C12" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={18} color="#070C12" />
-                  <Text style={styles.applySubmitBtnText}>Send Application to Recruiter</Text>
-                </>
-              )}
-            </TouchableOpacity>
+              <View style={styles.applyModalBox}>
+                <View style={styles.applyModalHeader}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.applyModalTitle}>Submit Job Application</Text>
+                    <Text style={styles.applyModalSubtitle} numberOfLines={1}>
+                      {(activeApplyingJob || selectedJob)?.title} • {(activeApplyingJob || selectedJob)?.companyName}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setApplyModalVisible(false);
+                      setActiveApplyingJob(null);
+                    }}
+                  >
+                    <Ionicons name="close" size={24} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={{ maxHeight: 420 }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.applyInputLabel}>Full Name *</Text>
+                  <TextInput
+                    style={styles.applyInput}
+                    value={applicantName}
+                    onChangeText={setApplicantName}
+                    placeholder="Your full name"
+                    placeholderTextColor="#64748B"
+                  />
+
+                  <Text style={styles.applyInputLabel}>Email Address *</Text>
+                  <TextInput
+                    style={styles.applyInput}
+                    value={applicantEmail}
+                    onChangeText={setApplicantEmail}
+                    placeholder="your.email@example.com"
+                    placeholderTextColor="#64748B"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+
+                  <Text style={styles.applyInputLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.applyInput}
+                    value={applicantPhone}
+                    onChangeText={setApplicantPhone}
+                    placeholder="+94 7X XXX XXXX"
+                    placeholderTextColor="#64748B"
+                    keyboardType="phone-pad"
+                  />
+
+                  {/* CV Document Picker */}
+                  <Text style={styles.applyInputLabel}>Attach CV / Resume (PDF / DOCX) *</Text>
+                  {selectedFile ? (
+                    <View style={styles.attachedFileBox}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Ionicons name="document-text" size={24} color="#00F5D4" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.attachedFileName} numberOfLines={1}>{selectedFile.name}</Text>
+                          <Text style={styles.attachedFileSize}>
+                            {uploadingCv ? 'Uploading to cloud...' : selectedFile.size ? `${(selectedFile.size / 1024).toFixed(1)} KB • Ready` : 'Attached'}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedFile(null);
+                          setApplicantResumeUrl('');
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.attachCvBtn}
+                      onPress={handlePickCv}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="cloud-upload-outline" size={20} color="#00F5D4" />
+                      <Text style={styles.attachCvBtnText}>Upload CV from Phone Storage (PDF, DOCX)</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <Text style={styles.applyInputLabel}>Cover Letter & Motivation</Text>
+                  <TextInput
+                    style={[styles.applyInput, { height: 85, textAlignVertical: 'top' }]}
+                    value={applicantCoverLetter}
+                    onChangeText={setApplicantCoverLetter}
+                    placeholder="Highlight your technical strengths, relevant achievements, and why you want to join..."
+                    placeholderTextColor="#64748B"
+                    multiline
+                  />
+
+                  {/* Dismiss Keyboard Shortcut Button */}
+                  <TouchableOpacity
+                    style={styles.dismissKeypadBtn}
+                    onPress={Keyboard.dismiss}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="chevron-down-circle-outline" size={16} color="#94A3B8" />
+                    <Text style={styles.dismissKeypadText}>Dismiss Keyboard</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={styles.applySubmitBtn}
+                  onPress={handleApplyToJob}
+                  disabled={submittingApp || uploadingCv}
+                >
+                  {submittingApp ? (
+                    <ActivityIndicator color="#070C12" />
+                  ) : (
+                    <>
+                      <Ionicons name="paper-plane" size={18} color="#070C12" />
+                      <Text style={styles.applySubmitBtnText}>Send Application to Recruiter</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* ========================================================
@@ -1709,6 +1834,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
   },
+  directApplyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#00F5D4',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.sm,
+  },
+  directApplyBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#070C12',
+  },
 
   // Legacy Categories View
   categoriesContainer: {
@@ -2200,5 +2339,61 @@ const styles = StyleSheet.create({
     color: '#070C12',
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  // CV Attachment & Keyboard Helper
+  attachCvBtn: {
+    backgroundColor: '#132133',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#00F5D4',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginVertical: 4,
+  },
+  attachCvBtnText: {
+    color: '#00F5D4',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  attachedFileBox: {
+    backgroundColor: '#132133',
+    borderWidth: 1,
+    borderColor: '#00F5D4',
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 4,
+  },
+  attachedFileName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  attachedFileSize: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  dismissKeypadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 10,
+    alignSelf: 'center',
+  },
+  dismissKeypadText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

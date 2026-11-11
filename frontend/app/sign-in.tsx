@@ -259,26 +259,18 @@ export default function SignInScreen() {
 
             {/* Recruiter / Hiring Link */}
             <TouchableOpacity
-              style={{
-                marginTop: Spacing.xl,
-                backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                borderWidth: 1,
-                borderColor: 'rgba(56, 189, 248, 0.3)',
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                borderRadius: 12,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-              }}
+              style={styles.recruiterBanner}
               onPress={() => router.push('/company-auth')}
+              activeOpacity={0.8}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="business" size={16} color="#38BDF8" />
-              <Text style={{ color: '#38BDF8', fontSize: 13, fontWeight: '700' }}>
-                Looking to Hire? Switch to Recruiter Portal
-              </Text>
-              <Ionicons name="arrow-forward" size={14} color="#38BDF8" />
+              <View style={styles.recruiterIconCircle}>
+                <Ionicons name="business" size={18} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.recruiterBannerTitle}>Looking to Hire Engineers?</Text>
+                <Text style={styles.recruiterBannerSub}>Switch to Enterprise Recruiter Portal →</Text>
+              </View>
             </TouchableOpacity>
           </ResponsiveContainer>
         </ScrollView>
@@ -311,4 +303,39 @@ const styles = StyleSheet.create({
   resendText: { fontSize: Typography.caption, color: Colors.primary, fontWeight: Typography.bold },
   timerText: { fontSize: Typography.caption, color: Colors.textMuted },
   backToLoginText: { fontSize: Typography.caption, color: Colors.textMuted, fontWeight: Typography.medium },
+
+  // Responsive Recruiter Switch Card
+  recruiterBanner: {
+    marginTop: Spacing.xl,
+    backgroundColor: '#0F1B2B',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 56,
+    width: '100%',
+  },
+  recruiterIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recruiterBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  recruiterBannerSub: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });

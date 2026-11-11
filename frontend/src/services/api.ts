@@ -3,9 +3,19 @@ import Constants from 'expo-constants';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+// =========================================================
+// Backend API Endpoint Configuration
+// Google Cloud Run Production URL & Local Development Fallback
+// =========================================================
+export const CLOUD_RUN_API_URL = 'https://ai-mentor-backend-121422847816.asia-south1.run.app/api';
+const USE_CLOUD_BACKEND = true; // Set to true to use live Google Cloud Run backend
 const CURRENT_LAN_IP = '192.168.1.11';
 
 const getBaseUrl = (): string => {
+  if (USE_CLOUD_BACKEND) {
+    return CLOUD_RUN_API_URL;
+  }
+
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined' && window.location?.hostname) {
       const host = window.location.hostname;
@@ -630,7 +640,19 @@ class ApiClient {
     return this.request<any>('get', '/company/profile');
   }
 
-  async updateCompanyProfile(data: any) {
+  async updateCompanyProfile(data: {
+    name?: string;
+    website?: string;
+    industry?: string;
+    description?: string;
+    size?: string;
+    location?: string;
+    logoUrl?: string;
+  }) {
+    return this.request<any>('put', '/company/profile', data);
+  }
+
+  async updatecompanyProfile(data: any) {
     return this.request<any>('put', '/company/profile', data);
   }
 

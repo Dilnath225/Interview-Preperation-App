@@ -111,7 +111,7 @@ export class CompanyService {
   /**
    * Updates allowed company profile fields
    */
-  static async updateProfile(companyId: string, dto: Partial<Omit<RegisterCompanyDTO, 'email' | 'password'>>) {
+  static async updateProfile(companyId: string, dto: Partial<Omit<RegisterCompanyDTO, 'email' | 'password'>> & { logoUrl?: string }) {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
     });
@@ -127,6 +127,7 @@ export class CompanyService {
     if (dto.description !== undefined) updateData.description = dto.description.trim() || null;
     if (dto.size !== undefined) updateData.size = dto.size.trim();
     if (dto.location !== undefined) updateData.location = dto.location.trim() || null;
+    if (dto.logoUrl !== undefined) updateData.logoUrl = dto.logoUrl;
 
     const updated = await prisma.company.update({
       where: { id: companyId },

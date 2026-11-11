@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { JobController } from '../controllers/job.controller';
 import { asyncHandler } from '../middlewares/asyncHandler';
-import { authenticate } from '../middlewares/auth.middleware';
+import { authenticate, optionalAuthenticate } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Candidate authenticated application endpoints
-router.post('/:id/apply', authenticate, asyncHandler(JobController.applyToJob));
+// Candidate application endpoints
+router.post('/:id/apply', optionalAuthenticate, asyncHandler(JobController.applyToJob));
 router.get('/my/applications', authenticate, asyncHandler(JobController.getMyApplications));
 
 // Public Job Postings (for candidates to browse target companies' openings)

@@ -157,18 +157,32 @@ export default function HomeScreen() {
               <Text style={styles.welcomeSub}>Career Accelerator Platform</Text>
               <Text style={styles.userName}>Hello, {userName}!</Text>
             </View>
-            {isLargeScreen && (
-              <TouchableOpacity
-                style={styles.heroTargetButton}
-                onPress={() => router.push('/target-companies')}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="business" size={16} color={Colors.primary} />
-                <Text style={styles.heroTargetButtonText}>Target Top Companies</Text>
-                <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
-              </TouchableOpacity>
-            )}
           </View>
+
+          {/* Prominent Live Job Openings & Target Companies Hero Banner (Mobile & Desktop) */}
+          <TouchableOpacity
+            style={styles.prominentJobBanner}
+            onPress={() => router.push('/target-companies')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.jobBannerIconBox}>
+              <Ionicons name="briefcase" size={24} color="#00F5D4" />
+            </View>
+            <View style={{ flex: 1, paddingRight: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Text style={styles.jobBannerHeading}>Live Tech Job Openings</Text>
+                <View style={styles.jobHiringBadge}>
+                  <Text style={styles.jobHiringBadgeText}>HIRING NOW</Text>
+                </View>
+              </View>
+              <Text style={styles.jobBannerSubtitle}>
+                Target top Sri Lankan & global companies. Apply directly with your AI Mentor CV.
+              </Text>
+            </View>
+            <View style={styles.jobBannerArrow}>
+              <Ionicons name="arrow-forward" size={18} color="#00F5D4" />
+            </View>
+          </TouchableOpacity>
 
           {/* Quick Action Cards (4 items - Responsive Grid) */}
           <View style={styles.quickActionsGrid}>
@@ -539,4 +553,57 @@ const styles = StyleSheet.create({
   sessionInfo: { flex: 1 },
   sessionTitle: { fontSize: Typography.body, fontWeight: Typography.bold, color: Colors.textPrimary },
   sessionSubtitle: { fontSize: Typography.caption, color: Colors.textSecondary, marginTop: 2 },
+
+  // Prominent Live Job Openings Banner
+  prominentJobBanner: {
+    backgroundColor: '#0B1726',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 245, 212, 0.4)',
+    borderRadius: 16,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    gap: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  jobBannerIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 245, 212, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jobBannerHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  jobHiringBadge: {
+    backgroundColor: 'rgba(0, 245, 212, 0.18)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  jobHiringBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#00F5D4',
+    letterSpacing: 0.5,
+  },
+  jobBannerSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  jobBannerArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 245, 212, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

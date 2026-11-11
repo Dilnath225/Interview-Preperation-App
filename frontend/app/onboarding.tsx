@@ -255,8 +255,8 @@ export default function OnboardingScreen() {
           </View>
         ) : (
           <Button
-            title="Get Started"
-            onPress={() => router.replace('/sign-in')}
+            title="Get Started  →"
+            onPress={() => router.replace('/portal-select')}
             variant="primary"
           />
         )}

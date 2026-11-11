@@ -259,6 +259,32 @@ export class JobService {
   // ─────────────────────────────────────────────────────────
 
   /**
+   * Finds existing candidate user by email or creates a new candidate record
+   */
+  static async findOrCreateApplicant(email: string, name: string) {
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        name,
+        password: 'APPLICANT_EXTERNAL_REGISTRATION',
+        targetRole: 'Software Engineer',
+      },
+      select: { id: true, email: true, name: true },
+    });
+
+    return newUser;
+  }
+
+  /**
    * Candidate submits an application for a specific job
    */
   static async applyToJob(userId: string, jobId: string, dto: {
