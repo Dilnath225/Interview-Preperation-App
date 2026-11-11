@@ -38,6 +38,7 @@ model User {
   chatMessages         ChatMessage[]
   technicalAssessments TechnicalAssessment[]
   certificates         Certificate[]
+  jobApplications      JobApplication[]
 }
 
 model InterviewSession {
@@ -213,4 +214,27 @@ model JobPosting {
   updatedAt    DateTime  @updatedAt
 
   company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id             String      @id @default(uuid())
+  jobId          String
+  userId         String
+  fullName       String
+  email          String
+  phone          String?
+  resumeUrl      String?     // PDF download URL or path
+  coverLetter    String?
+  readinessScore Int?        @default(0)
+  hasCertificate Boolean     @default(false)
+  status         String      @default("PENDING") // PENDING, REVIEWING, SHORTLISTED, REJECTED, ACCEPTED
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  job            JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([userId])
 }

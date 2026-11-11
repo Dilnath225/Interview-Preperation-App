@@ -256,6 +256,30 @@ export default function SignInScreen() {
                 <Text style={styles.registerLink}>Register with Email</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Recruiter / Hiring Link */}
+            <TouchableOpacity
+              style={{
+                marginTop: Spacing.xl,
+                backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                borderWidth: 1,
+                borderColor: 'rgba(56, 189, 248, 0.3)',
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+              onPress={() => router.push('/company-auth')}
+            >
+              <Ionicons name="business" size={16} color="#38BDF8" />
+              <Text style={{ color: '#38BDF8', fontSize: 13, fontWeight: '700' }}>
+                Looking to Hire? Switch to Recruiter Portal
+              </Text>
+              <Ionicons name="arrow-forward" size={14} color="#38BDF8" />
+            </TouchableOpacity>
           </ResponsiveContainer>
         </ScrollView>
       </KeyboardAvoidingView>

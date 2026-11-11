@@ -14,13 +14,16 @@ function InitialLayout() {
   useEffect(() => {
     if (isLoading) return;
 
+    const isCompanyScreen = segments[0] === 'company-auth' || segments[0] === 'company-dashboard' || segments[0] === 'portal-select';
+    if (isCompanyScreen) return;
+
     const inAuthGroup =
       segments[0] === '(tabs)' ||
       segments[0] === 'mock-interview' ||
       segments[0] === 'coding-challenge' ||
       segments[0] === 'leadership-mcq' ||
       segments[0] === 'target-companies';
-    const isAuthScreen = segments[0] === 'sign-in' || segments[0] === 'sign-up' || segments[0] === 'onboarding';
+    const isAuthScreen = segments[0] === 'sign-in' || segments[0] === 'sign-up' || segments[0] === 'onboarding' || segments[0] === 'portal-select';
 
     if (!isAuthenticated && inAuthGroup) {
       // Redirect to sign-in if not authenticated but trying to access protected route
@@ -39,6 +42,9 @@ function InitialLayout() {
         animation: 'fade',
       }}
     >
+      <Stack.Screen name="portal-select" />
+      <Stack.Screen name="company-auth" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="company-dashboard" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="sign-in" />

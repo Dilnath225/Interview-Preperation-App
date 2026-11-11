@@ -2,7 +2,7 @@
  * AI Mentor - Target Top Companies & Job Openings Nowadays
  * Comprehensive Elite Preparation calibrated to Sri Lanka and Global Tech Giants
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   TextInput,
   Modal,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +22,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/them
 import { Header } from '../src/components/Header';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
 import { useResponsive } from '../src/hooks/useResponsive';
+import { useAuth } from '../src/context/AuthContext';
+import { api } from '../src/services/api';
 import {
   TECH_COMPANIES,
   JOB_OPENINGS,
@@ -35,15 +39,71 @@ export default function TargetCompaniesScreen() {
   const { isDesktop, isTablet, isWide } = useResponsive();
   const isLargeScreen = isDesktop || isTablet;
 
+  const { user } = useAuth();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompany, setSelectedCompany] = useState<TechCompany | null>(null);
-  const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [customPrepVisible, setCustomPrepVisible] = useState(false);
   const [customRole, setCustomRole] = useState('');
   const [customCompany, setCustomCompany] = useState('');
   const [customJd, setCustomJd] = useState('');
   const [jobRegionFilter, setJobRegionFilter] = useState<'all' | 'srilanka' | 'global'>('all');
+
+  // Live Company Job Postings from Backend
+  const [liveJobs, setLiveJobs] = useState<any[]>([]);
+
+  // Apply Modal State
+  const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [applicantName, setApplicantName] = useState('');
+  const [applicantEmail, setApplicantEmail] = useState('');
+  const [applicantPhone, setApplicantPhone] = useState('');
+  const [applicantCoverLetter, setApplicantCoverLetter] = useState('');
+  const [applicantResumeUrl, setApplicantResumeUrl] = useState('');
+  const [submittingApp, setSubmittingApp] = useState(false);
+
+  useEffect(() => {
+    // Fetch live company job postings
+    api.getPublicJobs()
+      .then((res) => {
+        if (res.success && res.data?.jobs) {
+          const mapped = res.data.jobs.map((j: any) => ({
+            id: j.id,
+            companyId: j.company?.id || j.id,
+            companyName: j.company?.name || 'Enterprise Recruiter',
+            title: j.title,
+            department: j.targetRole || 'Software Engineering',
+            location: j.location || 'Remote',
+            experienceLevel: j.experience || 'Senior',
+            salaryRange: j.salaryRange,
+            type: j.type || 'Full-time',
+            region: 'srilanka',
+            urgency: 'HOT',
+            description: j.description,
+            techStacks: j.requirements ? (typeof j.requirements === 'string' ? JSON.parse(j.requirements) : j.requirements) : ['Full Stack'],
+            responsibilities: [
+              'Design scalable and highly reliable distributed cloud services',
+              'Collaborate with global technical and cross-functional teams',
+            ],
+            requirements: j.requirements ? (typeof j.requirements === 'string' ? JSON.parse(j.requirements) : j.requirements) : ['TypeScript', 'Node.js', 'SQL'],
+            interviewStages: ['Technical Screening', 'System Architecture Drill', 'Hiring Manager Round'],
+            isLivePosting: true,
+          }));
+          setLiveJobs(mapped);
+        }
+      })
+      .catch((e) => console.log('Live jobs fetch:', e.message));
+  }, []);
+
+  // Pre-fill user details when applying
+  useEffect(() => {
+    if (user) {
+      setApplicantName(user.name || '');
+      setApplicantEmail(user.email || '');
+      setApplicantPhone((user as any).phone || '');
+    }
+  }, [user]);
 
   // Filter companies based on search and tab
   const filteredCompanies = useMemo(() => {
@@ -61,13 +121,18 @@ export default function TargetCompaniesScreen() {
     });
   }, [searchQuery, activeTab]);
 
+  // Combine live jobs with curated jobs
+  const combinedJobs = useMemo(() => {
+    return [...liveJobs, ...JOB_OPENINGS];
+  }, [liveJobs]);
+
   // Filter jobs based on search and region
   const filteredJobs = useMemo(() => {
-    return JOB_OPENINGS.filter((job) => {
+    return combinedJobs.filter((job) => {
       const matchesSearch =
         job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         job.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.techStacks.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        job.techStacks.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
         job.location.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
@@ -76,7 +141,45 @@ export default function TargetCompaniesScreen() {
       if (jobRegionFilter === 'global') return job.region === 'global' || job.region === 'remote';
       return true;
     });
-  }, [searchQuery, jobRegionFilter]);
+  }, [searchQuery, jobRegionFilter, combinedJobs]);
+
+  const handleApplyToJob = async () => {
+    if (!applicantName.trim() || !applicantEmail.trim()) {
+      Alert.alert('Missing Info', 'Full Name and Email are required.');
+      return;
+    }
+
+    if (!selectedJob) return;
+
+    setSubmittingApp(true);
+    try {
+      const res = await api.applyToJob(selectedJob.id, {
+        fullName: applicantName.trim(),
+        email: applicantEmail.trim(),
+        phone: applicantPhone.trim() || undefined,
+        coverLetter: applicantCoverLetter.trim() || undefined,
+        resumeUrl: applicantResumeUrl.trim() || undefined,
+      });
+
+      if (res.success) {
+        Alert.alert(
+          '🎉 Application Submitted!',
+          `Your CV and cover letter have been sent directly to ${selectedJob.companyName}'s recruiter dashboard. The hiring team will review your application.`
+        );
+        setApplyModalVisible(false);
+        setApplicantCoverLetter('');
+      } else {
+        Alert.alert('Application Failed', res.message || 'Unable to submit application.');
+      }
+    } catch (err: any) {
+      Alert.alert(
+        'Submission Notice',
+        err.response?.data?.message || err.message || 'Your application could not be completed.'
+      );
+    } finally {
+      setSubmittingApp(false);
+    }
+  };
 
   const handleLaunchCompanyInterview = (company: TechCompany) => {
     setSelectedCompany(null);
@@ -335,7 +438,7 @@ export default function TargetCompaniesScreen() {
 
                   {/* Tech Stack Chips */}
                   <View style={styles.techStackRow}>
-                    {job.techStacks.map((tech) => (
+                    {job.techStacks.map((tech: string) => (
                       <View key={tech} style={styles.techPill}>
                         <Text style={styles.techPillText}>{tech}</Text>
                       </View>
@@ -762,7 +865,7 @@ export default function TargetCompaniesScreen() {
               {/* Tech Stack Required */}
               <Text style={styles.modalSectionTitle}>TECH STACK & TOOLS</Text>
               <View style={styles.techPillGrid}>
-                {selectedJob.techStacks.map((tech) => (
+                {selectedJob.techStacks.map((tech: string) => (
                   <View key={tech} style={styles.modalTechPill}>
                     <Ionicons name="layers-outline" size={13} color={Colors.primary} />
                     <Text style={styles.modalTechPillText}>{tech}</Text>
@@ -772,7 +875,7 @@ export default function TargetCompaniesScreen() {
 
               {/* Key Responsibilities */}
               <Text style={styles.modalSectionTitle}>KEY RESPONSIBILITIES</Text>
-              {selectedJob.responsibilities.map((r, idx) => (
+              {selectedJob.responsibilities.map((r: string, idx: number) => (
                 <View key={idx} style={styles.bulletRow}>
                   <Ionicons name="checkmark-circle" size={16} color={Colors.primary} style={{ marginTop: 2 }} />
                   <Text style={styles.bulletText}>{r}</Text>
@@ -781,7 +884,7 @@ export default function TargetCompaniesScreen() {
 
               {/* Minimum Requirements */}
               <Text style={styles.modalSectionTitle}>MINIMUM QUALIFICATIONS</Text>
-              {selectedJob.requirements.map((req, idx) => (
+              {selectedJob.requirements.map((req: string, idx: number) => (
                 <View key={idx} style={styles.bulletRow}>
                   <Ionicons name="shield-checkmark" size={16} color="#00E676" style={{ marginTop: 2 }} />
                   <Text style={styles.bulletText}>{req}</Text>
@@ -791,7 +894,7 @@ export default function TargetCompaniesScreen() {
               {/* Interview Loop */}
               <Text style={styles.modalSectionTitle}>INTERVIEW STAGES</Text>
               <View style={styles.stagesBox}>
-                {selectedJob.interviewStages.map((stage, idx) => (
+                {selectedJob.interviewStages.map((stage: string, idx: number) => (
                   <View key={idx} style={styles.stageItem}>
                     <View style={styles.stageNumberCircle}>
                       <Text style={styles.stageNumberText}>{idx + 1}</Text>
@@ -800,6 +903,27 @@ export default function TargetCompaniesScreen() {
                   </View>
                 ))}
               </View>
+
+              {/* Apply for this Position Button */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#00F5D4',
+                  borderRadius: 14,
+                  paddingVertical: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+                onPress={() => setApplyModalVisible(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="paper-plane" size={18} color="#070C12" />
+                <Text style={{ color: '#070C12', fontSize: 15, fontWeight: '800' }}>
+                  Apply for this Position
+                </Text>
+              </TouchableOpacity>
 
               {/* Start AI Prep for this exact Job */}
               <TouchableOpacity
@@ -816,6 +940,99 @@ export default function TargetCompaniesScreen() {
             </ScrollView>
           </SafeAreaView>
         )}
+      </Modal>
+
+      {/* ========================================================
+          MODAL: APPLY TO JOB (Upload CV & Cover Letter)
+      ======================================================== */}
+      <Modal
+        visible={applyModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setApplyModalVisible(false)}
+      >
+        <View style={styles.applyModalOverlay}>
+          <View style={styles.applyModalBox}>
+            <View style={styles.applyModalHeader}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.applyModalTitle}>Submit Job Application</Text>
+                <Text style={styles.applyModalSubtitle} numberOfLines={1}>
+                  {selectedJob?.title} • {selectedJob?.companyName}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setApplyModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 460 }}>
+              <Text style={styles.applyInputLabel}>Full Name *</Text>
+              <TextInput
+                style={styles.applyInput}
+                value={applicantName}
+                onChangeText={setApplicantName}
+                placeholder="Your full name"
+                placeholderTextColor="#64748B"
+              />
+
+              <Text style={styles.applyInputLabel}>Email Address *</Text>
+              <TextInput
+                style={styles.applyInput}
+                value={applicantEmail}
+                onChangeText={setApplicantEmail}
+                placeholder="your.email@example.com"
+                placeholderTextColor="#64748B"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.applyInputLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.applyInput}
+                value={applicantPhone}
+                onChangeText={setApplicantPhone}
+                placeholder="+94 7X XXX XXXX"
+                placeholderTextColor="#64748B"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.applyInputLabel}>Resume / CV File or Link</Text>
+              <TextInput
+                style={styles.applyInput}
+                value={applicantResumeUrl}
+                onChangeText={setApplicantResumeUrl}
+                placeholder="Link to online CV / Google Drive / Portfolio"
+                placeholderTextColor="#64748B"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.applyInputLabel}>Cover Letter & Motivation</Text>
+              <TextInput
+                style={[styles.applyInput, { height: 90, textAlignVertical: 'top' }]}
+                value={applicantCoverLetter}
+                onChangeText={setApplicantCoverLetter}
+                placeholder="Highlight your technical strengths, relevant achievements, and why you want to join..."
+                placeholderTextColor="#64748B"
+                multiline
+              />
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.applySubmitBtn}
+              onPress={handleApplyToJob}
+              disabled={submittingApp}
+            >
+              {submittingApp ? (
+                <ActivityIndicator color="#070C12" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color="#070C12" />
+                  <Text style={styles.applySubmitBtnText}>Send Application to Recruiter</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* ========================================================
@@ -1912,5 +2129,76 @@ const styles = StyleSheet.create({
   customTextArea: {
     minHeight: 110,
     lineHeight: 19,
+  },
+
+  // Apply Modal Styles
+  applyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  applyModalBox: {
+    backgroundColor: '#0E1724',
+    borderRadius: 18,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 520,
+    borderWidth: 1.5,
+    borderColor: '#00F5D4',
+  },
+  applyModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  applyModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  applyModalSubtitle: {
+    fontSize: 12,
+    color: '#00F5D4',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  applyInputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    marginBottom: 4,
+    marginTop: 8,
+    textTransform: 'uppercase',
+  },
+  applyInput: {
+    backgroundColor: '#152033',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#26354D',
+    color: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
+  applySubmitBtn: {
+    backgroundColor: '#00F5D4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  applySubmitBtnText: {
+    color: '#070C12',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

@@ -69,7 +69,7 @@ export default function OnboardingScreen() {
       });
       setCurrentIndex(currentIndex + 1);
     } else {
-      router.replace('/sign-in');
+      router.replace('/portal-select');
     }
   };
 
@@ -84,7 +84,7 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
-    router.replace('/sign-in');
+    router.replace('/portal-select');
   };
 
   const renderIllustration = (type: Slide['type']) => {

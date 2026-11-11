@@ -50,6 +50,7 @@ const getBaseUrl = (): string => {
 export const API_BASE_URL = getBaseUrl();
 console.log(`[API Base URL configured for ${Platform.OS}]:`, API_BASE_URL);
 const TOKEN_KEY = 'ai_mentor_auth_token';
+const COMPANY_TOKEN_KEY = 'ai_mentor_company_token';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -101,6 +102,7 @@ const storage = {
 };
 
 let inMemoryToken: string | null = null;
+let inMemoryCompanyToken: string | null = null;
 
 axiosInstance.interceptors.request.use(async (config) => {
   try {
@@ -117,19 +119,36 @@ axiosInstance.interceptors.request.use(async (config) => {
         (config.headers as any)['Content-Type'] = 'application/json';
       }
     }
-    let token = inMemoryToken;
-    if (!token) {
-      token = await storage.getItem(TOKEN_KEY);
-      if (token) {
-        inMemoryToken = token;
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+    const isCompanyReq = config.url?.startsWith('/company') && !config.url?.startsWith('/company/auth');
+    if (isCompanyReq) {
+      let cToken = inMemoryCompanyToken;
+      if (!cToken) {
+        cToken = await storage.getItem(COMPANY_TOKEN_KEY);
+        if (cToken) inMemoryCompanyToken = cToken;
       }
-    }
-    if (token) {
-      if (config.headers && typeof (config.headers as any).set === 'function') {
-        (config.headers as any).set('Authorization', `Bearer ${token}`);
-      } else {
-        (config.headers as any)['Authorization'] = `Bearer ${token}`;
+      if (cToken) {
+        if (config.headers && typeof (config.headers as any).set === 'function') {
+          (config.headers as any).set('Authorization', `Bearer ${cToken}`);
+        } else {
+          (config.headers as any)['Authorization'] = `Bearer ${cToken}`;
+        }
+      }
+    } else {
+      let token = inMemoryToken;
+      if (!token) {
+        token = await storage.getItem(TOKEN_KEY);
+        if (token) {
+          inMemoryToken = token;
+          axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+      }
+      if (token) {
+        if (config.headers && typeof (config.headers as any).set === 'function') {
+          (config.headers as any).set('Authorization', `Bearer ${token}`);
+        } else {
+          (config.headers as any)['Authorization'] = `Bearer ${token}`;
+        }
       }
     }
   } catch (err) {
@@ -560,6 +579,127 @@ class ApiClient {
   // --- Proctoring & Gaze Detection ---
   async detectGaze(imageBase64: string) {
     return this.request<any>('post', '/interviews/gaze-detection', { image_base64: imageBase64 });
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // COMPANY & RECRUITER PORTAL API
+  // ─────────────────────────────────────────────────────────
+
+  async setCompanyToken(token: string) {
+    inMemoryCompanyToken = token;
+    await storage.setItem(COMPANY_TOKEN_KEY, token);
+  }
+
+  async getCompanyToken() {
+    if (inMemoryCompanyToken) return inMemoryCompanyToken;
+    inMemoryCompanyToken = await storage.getItem(COMPANY_TOKEN_KEY);
+    return inMemoryCompanyToken;
+  }
+
+  async clearCompanyToken() {
+    inMemoryCompanyToken = null;
+    await storage.removeItem(COMPANY_TOKEN_KEY);
+  }
+
+  async companyRegister(data: {
+    name: string;
+    email: string;
+    password: string;
+    website?: string;
+    industry?: string;
+    size?: string;
+    location?: string;
+    description?: string;
+  }) {
+    const res = await this.request<any>('post', '/company/auth/register', data);
+    if (res.data?.token) {
+      await this.setCompanyToken(res.data.token);
+    }
+    return res;
+  }
+
+  async companyLogin(email: string, password: string) {
+    const res = await this.request<any>('post', '/company/auth/login', { email, password });
+    if (res.data?.token) {
+      await this.setCompanyToken(res.data.token);
+    }
+    return res;
+  }
+
+  async getCompanyProfile() {
+    return this.request<any>('get', '/company/profile');
+  }
+
+  async updateCompanyProfile(data: any) {
+    return this.request<any>('put', '/company/profile', data);
+  }
+
+  // --- Recruiter Talent Pool & Verification ---
+  async getTalentPool(filters?: { targetRole?: string; minScore?: number; experienceLevel?: string }) {
+    return this.request<any>('get', '/company/talent', undefined, { params: filters });
+  }
+
+  async getCandidateProfile(userId: string) {
+    return this.request<any>('get', `/company/talent/${userId}`);
+  }
+
+  async verifyCandidateCredential(credentialId: string) {
+    return this.request<any>('get', `/company/verify/${credentialId}`);
+  }
+
+  // --- Company Job Management ---
+  async getCompanyJobs() {
+    return this.request<any>('get', '/company/jobs');
+  }
+
+  async getCompanyJobStats() {
+    return this.request<any>('get', '/company/jobs/stats');
+  }
+
+  async createCompanyJob(jobData: {
+    title: string;
+    description: string;
+    targetRole?: string;
+    location?: string;
+    salaryRange?: string;
+    requirements?: string;
+    type?: string;
+    experience?: string;
+  }) {
+    return this.request<any>('post', '/company/jobs', jobData);
+  }
+
+  async deleteCompanyJob(jobId: string) {
+    return this.request<any>('delete', `/company/jobs/${jobId}`);
+  }
+
+  async getJobApplications(jobId: string) {
+    return this.request<any>('get', `/company/jobs/${jobId}/applications`);
+  }
+
+  async getAllCompanyApplications() {
+    return this.request<any>('get', '/company/applications');
+  }
+
+  async updateApplicationStatus(applicationId: string, status: string) {
+    return this.request<any>('put', `/company/applications/${applicationId}/status`, { status });
+  }
+
+  // --- Public Jobs & Candidate Applications ---
+  async getPublicJobs(filters?: { targetRole?: string; type?: string; experience?: string; location?: string }) {
+    return this.request<any>('get', '/jobs', undefined, { params: filters });
+  }
+
+  async getPublicJobById(jobId: string) {
+    return this.request<any>('get', `/jobs/${jobId}`);
+  }
+
+  async applyToJob(jobId: string, data: { fullName: string; email: string; phone?: string; coverLetter?: string; resumeUrl?: string }) {
+    return this.request<any>('post', `/jobs/${jobId}/apply`, data);
+  }
+
+  async getMyApplications() {
+    return this.request<any>('get', '/jobs/my/applications');
   }
 }
 

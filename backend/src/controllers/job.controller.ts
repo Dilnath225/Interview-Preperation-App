@@ -97,4 +97,99 @@ export class JobController {
     const job = await JobService.getJobById(jobId);
     return sendResponse(res, 200, { job }, 'Job details retrieved successfully.');
   };
+
+  // ─────────────────────────────────────────────────────────
+  // APPLICATIONS PIPELINE
+  // ─────────────────────────────────────────────────────────
+
+  /**
+   * Candidate applies to an active job posting
+   */
+  static applyToJob = async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      throw ApiError.unauthorized('Candidate authentication required.');
+    }
+
+    const rawId = req.params.id;
+    const jobId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const { fullName, email, phone, coverLetter, resumeUrl } = req.body;
+
+    if (!fullName || !email) {
+      throw ApiError.badRequest('Full Name and Email are required.');
+    }
+
+    const application = await JobService.applyToJob(userId, jobId, {
+      fullName,
+      email,
+      phone,
+      coverLetter,
+      resumeUrl,
+    });
+
+    return sendResponse(res, 201, { application }, 'Application submitted successfully.');
+  };
+
+  /**
+   * Candidate retrieves all their submitted applications
+   */
+  static getMyApplications = async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      throw ApiError.unauthorized('Candidate authentication required.');
+    }
+
+    const applications = await JobService.getCandidateApplications(userId);
+    return sendResponse(res, 200, { applications }, 'Candidate applications retrieved.');
+  };
+
+  /**
+   * Company retrieves applications for a specific job
+   */
+  static getJobApplications = async (req: Request, res: Response) => {
+    const companyId = (req as any).company?.id;
+    if (!companyId) {
+      throw ApiError.unauthorized('Company authentication required.');
+    }
+
+    const rawId = req.params.id;
+    const jobId = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    const applications = await JobService.getJobApplications(companyId, jobId);
+    return sendResponse(res, 200, { applications }, 'Job applications retrieved.');
+  };
+
+  /**
+   * Company retrieves all candidate applications across all its jobs
+   */
+  static getAllCompanyApplications = async (req: Request, res: Response) => {
+    const companyId = (req as any).company?.id;
+    if (!companyId) {
+      throw ApiError.unauthorized('Company authentication required.');
+    }
+
+    const applications = await JobService.getAllCompanyApplications(companyId);
+    return sendResponse(res, 200, { applications }, 'All company applications retrieved.');
+  };
+
+  /**
+   * Company updates the status of an application
+   */
+  static updateApplicationStatus = async (req: Request, res: Response) => {
+    const companyId = (req as any).company?.id;
+    if (!companyId) {
+      throw ApiError.unauthorized('Company authentication required.');
+    }
+
+    const rawAppId = req.params.applicationId;
+    const applicationId = Array.isArray(rawAppId) ? rawAppId[0] : rawAppId;
+    const { status } = req.body;
+
+    if (!status) {
+      throw ApiError.badRequest('Application status is required.');
+    }
+
+    const updated = await JobService.updateApplicationStatus(companyId, applicationId, status);
+    return sendResponse(res, 200, { application: updated }, 'Application status updated.');
+  };
 }

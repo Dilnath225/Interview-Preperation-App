@@ -2,49 +2,104 @@ import os
 import sys
 import argparse
 import json
+import shutil
+import subprocess
 from datetime import datetime
 from docx import Document
-from docx2pdf import convert
 import openpyxl
-import pythoncom
+
+# Platform-specific imports for DOCX to PDF conversion
+IS_WINDOWS = sys.platform == "win32"
+if IS_WINDOWS:
+    try:
+        import pythoncom
+        from docx2pdf import convert
+    except ImportError:
+        pythoncom = None
+        convert = None
+else:
+    pythoncom = None
+    convert = None
+
+def convert_docx_to_pdf(docx_path: str, output_pdf_path: str):
+    dir_name = os.path.dirname(output_pdf_path)
+    os.makedirs(dir_name, exist_ok=True)
+
+    if IS_WINDOWS and convert is not None:
+        if pythoncom:
+            pythoncom.CoInitialize()
+        try:
+            convert(docx_path, output_pdf_path)
+        finally:
+            if pythoncom:
+                pythoncom.CoUninitialize()
+    else:
+        # Linux / Docker container conversion using headless LibreOffice / soffice
+        office_bin = shutil.which("libreoffice") or shutil.which("soffice")
+        if not office_bin:
+            raise RuntimeError(
+                "Neither Microsoft Word (Windows) nor LibreOffice (Linux/Docker) was found for DOCX to PDF conversion."
+            )
+
+        cmd = [
+            office_bin,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            docx_path,
+            "--outdir",
+            dir_name,
+        ]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"LibreOffice PDF conversion failed: {proc.stderr or proc.stdout}")
+
+        # LibreOffice outputs <base_name>.pdf in dir_name
+        base_name = os.path.splitext(os.path.basename(docx_path))[0]
+        generated_pdf = os.path.join(dir_name, f"{base_name}.pdf")
+
+        if os.path.exists(generated_pdf) and os.path.abspath(generated_pdf) != os.path.abspath(output_pdf_path):
+            shutil.move(generated_pdf, output_pdf_path)
+
+    if not os.path.exists(output_pdf_path):
+        raise FileNotFoundError(f"Generated PDF was not found at expected location: {output_pdf_path}")
 
 def generate_certificate(name: str, role: str, email: str, score: str, credential_id: str, output_pdf: str, excel_path: str, template_path: str):
-    pythoncom.CoInitialize()
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Template not found at: {template_path}")
+
+    # 1. Load Word template
+    doc = Document(template_path)
+    issue_date_str = datetime.now().strftime("%d %B %Y")
+    excel_date_str = datetime.now().strftime("%Y-%m-%d")
+
+    replacements = {
+        "{{CANDIDATE_NAME}}": name,
+        "{{TARGET_ROLE}}": role,
+        "{{SCORE}}": score,
+        "{{CREDENTIAL_ID}}": credential_id,
+        "{{ISSUE_DATE}}": issue_date_str
+    }
+
+    # Replace placeholders in all text elements across the entire document (including nested tables)
+    for t in doc._element.xpath('//w:t'):
+        if t.text:
+            for key, val in replacements.items():
+                if key in t.text:
+                    t.text = t.text.replace(key, val)
+
+    # Temporary docx file
+    dir_name = os.path.dirname(output_pdf)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name, exist_ok=True)
+
+    temp_docx = os.path.join(dir_name, f"temp_{credential_id}.docx")
+    doc.save(temp_docx)
+
+    # 2. Convert to PDF cross-platform
     try:
-        if not os.path.exists(template_path):
-            raise FileNotFoundError(f"Template not found at: {template_path}")
-
-        # 1. Load Word template
-        doc = Document(template_path)
-        issue_date_str = datetime.now().strftime("%d %B %Y")
-        excel_date_str = datetime.now().strftime("%Y-%m-%d")
-
-        replacements = {
-            "{{CANDIDATE_NAME}}": name,
-            "{{TARGET_ROLE}}": role,
-            "{{SCORE}}": score,
-            "{{CREDENTIAL_ID}}": credential_id,
-            "{{ISSUE_DATE}}": issue_date_str
-        }
-
-        # Replace placeholders in all text elements across the entire document (including nested tables)
-        for t in doc._element.xpath('//w:t'):
-            if t.text:
-                for key, val in replacements.items():
-                    if key in t.text:
-                        t.text = t.text.replace(key, val)
-
-        # Temporary docx file
-        dir_name = os.path.dirname(output_pdf)
-        if not os.path.exists(dir_name):
-            os.makedirs(dir_name, exist_ok=True)
-
-        temp_docx = os.path.join(dir_name, f"temp_{credential_id}.docx")
-        doc.save(temp_docx)
-
-        # 2. Convert to PDF using Word COM interop
-        convert(temp_docx, output_pdf)
-
+        convert_docx_to_pdf(temp_docx, output_pdf)
+    finally:
         # Clean up temp docx
         if os.path.exists(temp_docx):
             try:
@@ -52,8 +107,9 @@ def generate_certificate(name: str, role: str, email: str, score: str, credentia
             except Exception:
                 pass
 
-        # 3. Update Excel Registry
-        if os.path.exists(excel_path):
+    # 3. Update Excel Registry (if present)
+    if os.path.exists(excel_path):
+        try:
             wb = openpyxl.load_workbook(excel_path)
             ws = wb.active
             
@@ -74,21 +130,20 @@ def generate_certificate(name: str, role: str, email: str, score: str, credentia
                     "Active"
                 ])
                 wb.save(excel_path)
+        except Exception as excel_err:
+            print(f"[WARN] Could not update Excel registry: {excel_err}", file=sys.stderr)
 
-        result = {
-            "success": True,
-            "credentialId": credential_id,
-            "pdfPath": output_pdf,
-            "issueDate": issue_date_str,
-            "name": name,
-            "role": role,
-            "score": score
-        }
-        print(json.dumps(result))
-        return result
-
-    finally:
-        pythoncom.CoUninitialize()
+    result = {
+        "success": True,
+        "credentialId": credential_id,
+        "pdfPath": output_pdf,
+        "issueDate": issue_date_str,
+        "name": name,
+        "role": role,
+        "score": score
+    }
+    print(json.dumps(result))
+    return result
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate AI Mentor Certificate")
@@ -121,4 +176,3 @@ if __name__ == "__main__":
         }
         print(json.dumps(error_result), file=sys.stderr)
         sys.exit(1)
-

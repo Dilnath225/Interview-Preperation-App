@@ -253,4 +253,197 @@ export class JobService {
 
     return { totalJobs, activeJobs, closedJobs, draftJobs };
   }
+
+  // ─────────────────────────────────────────────────────────
+  // JOB APPLICATION PIPELINE
+  // ─────────────────────────────────────────────────────────
+
+  /**
+   * Candidate submits an application for a specific job
+   */
+  static async applyToJob(userId: string, jobId: string, dto: {
+    fullName: string;
+    email: string;
+    phone?: string;
+    coverLetter?: string;
+    resumeUrl?: string;
+  }) {
+    const job = await prisma.jobPosting.findUnique({
+      where: { id: jobId },
+      select: { id: true, status: true, title: true, company: { select: { name: true } } },
+    });
+
+    if (!job) {
+      throw ApiError.notFound('Job posting not found.');
+    }
+
+    if (job.status !== 'ACTIVE') {
+      throw ApiError.badRequest('This job posting is no longer accepting applications.');
+    }
+
+    // Check if user already applied
+    const existingApp = await prisma.jobApplication.findFirst({
+      where: { jobId, userId },
+    });
+
+    if (existingApp) {
+      throw ApiError.badRequest('You have already applied for this position.');
+    }
+
+    // Retrieve user readiness & certification status
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        readinessScore: true,
+        certificates: {
+          where: { status: 'ACTIVE' },
+          take: 1,
+        },
+      },
+    });
+
+    const application = await prisma.jobApplication.create({
+      data: {
+        jobId,
+        userId,
+        fullName: dto.fullName.trim(),
+        email: dto.email.trim().toLowerCase(),
+        phone: dto.phone?.trim() || null,
+        coverLetter: dto.coverLetter?.trim() || null,
+        resumeUrl: dto.resumeUrl?.trim() || null,
+        readinessScore: user?.readinessScore || 0,
+        hasCertificate: Boolean(user?.certificates && user.certificates.length > 0),
+        status: 'PENDING',
+      },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            targetRole: true,
+            location: true,
+            company: { select: { id: true, name: true, logoUrl: true } },
+          },
+        },
+      },
+    });
+
+    return application;
+  }
+
+  /**
+   * Retrieves all applications submitted by a specific candidate
+   */
+  static async getCandidateApplications(userId: string) {
+    return prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            targetRole: true,
+            location: true,
+            salaryRange: true,
+            company: { select: { id: true, name: true, logoUrl: true } },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Retrieves applications for a specific company job
+   */
+  static async getJobApplications(companyId: string, jobId: string) {
+    const job = await prisma.jobPosting.findUnique({
+      where: { id: jobId },
+      select: { companyId: true },
+    });
+
+    if (!job) {
+      throw ApiError.notFound('Job posting not found.');
+    }
+
+    if (job.companyId !== companyId) {
+      throw ApiError.forbidden('You do not have permission to view applications for this job.');
+    }
+
+    return prisma.jobApplication.findMany({
+      where: { jobId },
+      orderBy: [
+        { readinessScore: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      include: {
+        user: {
+          select: {
+            id: true,
+            avatarUrl: true,
+            targetRole: true,
+            skills: true,
+            experienceLevel: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Retrieves all candidate applications across all jobs for a company
+   */
+  static async getAllCompanyApplications(companyId: string) {
+    return prisma.jobApplication.findMany({
+      where: {
+        job: { companyId },
+      },
+      orderBy: [
+        { createdAt: 'desc' },
+      ],
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            targetRole: true,
+            location: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            avatarUrl: true,
+            skills: true,
+            experienceLevel: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Updates application review status (SHORTLISTED, REJECTED, REVIEWING, ACCEPTED)
+   */
+  static async updateApplicationStatus(companyId: string, applicationId: string, status: string) {
+    const app = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { job: { select: { companyId: true } } },
+    });
+
+    if (!app) {
+      throw ApiError.notFound('Job application not found.');
+    }
+
+    if (app.job.companyId !== companyId) {
+      throw ApiError.forbidden('You do not have permission to update this application.');
+    }
+
+    const updated = await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: { status: status.toUpperCase() },
+    });
+
+    return updated;
+  }
 }

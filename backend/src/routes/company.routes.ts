@@ -28,8 +28,13 @@ router.get('/verify/:credentialId', asyncHandler(CompanyController.verifyCandida
 router.post('/jobs', asyncHandler(JobController.createJob));
 router.get('/jobs', asyncHandler(JobController.getMyJobs));
 router.get('/jobs/stats', asyncHandler(JobController.getJobStats));
+router.get('/jobs/:id/applications', asyncHandler(JobController.getJobApplications));
 router.put('/jobs/:id', asyncHandler(JobController.updateJob));
 router.delete('/jobs/:id', asyncHandler(JobController.deleteJob));
+
+// Received Applications Management
+router.get('/applications', asyncHandler(JobController.getAllCompanyApplications));
+router.put('/applications/:applicationId/status', asyncHandler(JobController.updateApplicationStatus));
 
 export default router;
 
