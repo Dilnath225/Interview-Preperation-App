@@ -35,16 +35,12 @@ import { speechManager } from '../../src/utils/speechRecognition';
 import { api } from '../../src/services/api';
 import { useNotifications } from '../../src/context';
 
-// Modern expo-audio engine for Expo SDK 57 / Expo Go
+// Modern expo-audio engine for Expo SDK 58
 let ExpoAudio: any = null;
 try {
   ExpoAudio = require('expo-audio');
 } catch (e) {
-  try {
-    ExpoAudio = require('expo-av');
-  } catch (e2) {
-    ExpoAudio = null;
-  }
+  ExpoAudio = null;
 }
 
 const PRACTICE_PROMPTS = [
@@ -210,21 +206,7 @@ export default function PracticeScreen() {
             return true;
           }
         }
-        // Legacy expo-av fallback
-        else if (ExpoAudio.Audio) {
-          let perm = await ExpoAudio.Audio.requestPermissionsAsync();
-          if (perm.granted) {
-            await ExpoAudio.Audio.setAudioModeAsync({
-              allowsRecordingIOS: true,
-              playsInSilentModeIOS: true,
-            });
-            const { recording } = await ExpoAudio.Audio.Recording.createAsync(
-              ExpoAudio.Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            expoRecordingRef.current = recording;
-            return true;
-          }
-        }
+
       } catch (err: any) {
         console.warn('[Speech Studio] Native recording notice:', err?.message || err);
       }
@@ -323,18 +305,7 @@ export default function PracticeScreen() {
       }
     }
 
-    // 2. Native expo-av (Legacy fallback)
-    if (expoRecordingRef.current) {
-      try {
-        await expoRecordingRef.current.stopAndUnloadAsync();
-        const uri = expoRecordingRef.current.getURI();
-        expoRecordingRef.current = null;
-        return uri;
-      } catch (err) {
-        console.warn('[Speech Studio] Failed to stop expo-av recording:', err);
-        expoRecordingRef.current = null;
-      }
-    }
+
 
     // Web MediaRecorder
     if (webRecorderRef.current && webRecorderRef.current.state !== 'inactive') {
@@ -545,16 +516,7 @@ export default function PracticeScreen() {
               setIsPlayingAudio(false);
             }
           });
-        } else if (ExpoAudio.Audio) {
-          const { sound } = await ExpoAudio.Audio.Sound.createAsync(
-            { uri: recordedAudioUri },
-            { shouldPlay: true }
-          );
-          audioPlayerRef.current = sound;
-          setIsPlayingAudio(true);
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) setIsPlayingAudio(false);
-          });
+
         }
       } else if (Platform.OS === 'web') {
         const audio = new window.Audio(recordedAudioUri);

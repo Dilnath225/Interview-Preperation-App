@@ -18,7 +18,7 @@ export const errorHandler = (
 
   if (err instanceof ApiError) {
     statusCode = err.statusCode;
-    message = err.message;
+    message = err.message.replace(/^Error:\s*/i, '').split('\n')[0].trim();
   } else if (err.name === 'ValidationError') {
     statusCode = 400;
     message = err.message;

@@ -33,7 +33,7 @@ export class AuthService {
     }
 
     const otpCode = EmailService.generateOTP();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     if (existing && !existing.isVerified) {
@@ -140,7 +140,7 @@ export class AuthService {
     }
 
     const otpCode = EmailService.generateOTP();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const otpExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
     await prisma.user.update({
       where: { id: user.id },
@@ -180,7 +180,7 @@ export class AuthService {
     // If user has not yet verified their email, send a fresh OTP and prompt them
     if (!user.isVerified) {
       const otpCode = EmailService.generateOTP();
-      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      const otpExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
       await prisma.user.update({
         where: { id: user.id },

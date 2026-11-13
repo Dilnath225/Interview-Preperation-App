@@ -25,12 +25,12 @@ import { AudioWaveform } from '../src/components/AudioWaveform';
 import { speechManager } from '../src/utils/speechRecognition';
 import { useNotifications } from '../src/context';
 
-// Conditionally import expo-av (with graceful fallback for Expo Go on iOS/Android)
-let Audio: any = null;
+// Modern expo-audio engine for Expo SDK 58
+let ExpoAudio: any = null;
 try {
-  Audio = require('expo-av')?.Audio;
+  ExpoAudio = require('expo-audio');
 } catch (e) {
-  // Expo Go iOS/Android uses Gemini Mobile Voice Engine
+  ExpoAudio = null;
 }
 
 export default function MockInterviewScreen() {
@@ -211,33 +211,25 @@ export default function MockInterviewScreen() {
     maxMicVolumeRef.current = 0;
     webChunksRef.current = [];
 
-    // Mobile Platform (Expo Go iOS / Android)
-    if (Platform.OS !== 'web') {
-      if (Audio) {
-        try {
-          const permission = await Audio.requestPermissionsAsync();
-          if (permission.status === 'granted') {
-            await Audio.setAudioModeAsync({
+    // Mobile Platform (Expo SDK 58 expo-audio)
+    if (Platform.OS !== 'web' && ExpoAudio) {
+      try {
+        if (ExpoAudio.AudioRecorder) {
+          const permission = await ExpoAudio.requestRecordingPermissionsAsync?.();
+          if (permission?.granted) {
+            await ExpoAudio.setAudioModeAsync?.({
               allowsRecordingIOS: true,
               playsInSilentModeIOS: true,
             });
-            const { recording: newRecording } = await Audio.Recording.createAsync(
-              Audio.RecordingOptionsPresets.HIGH_QUALITY
+            const recorder = new ExpoAudio.AudioRecorder(
+              ExpoAudio.RecordingPresets?.HIGH_QUALITY || {}
             );
-            expoRecordingRef.current = newRecording;
-            if (newRecording?.setOnRecordingStatusUpdate) {
-              newRecording.setOnRecordingStatusUpdate((status: any) => {
-                if (status.isRecording && typeof status.metering === 'number') {
-                  const vol = Math.min(100, Math.max(0, Math.round((status.metering + 160) / 1.6)));
-                  setMicVolume(vol);
-                  if (vol > maxMicVolumeRef.current) maxMicVolumeRef.current = vol;
-                  speechManager.feedVoiceCadence(vol);
-                }
-              });
-            }
+            await recorder.prepareToRecordAsync();
+            await recorder.recordAsync();
+            expoRecordingRef.current = recorder;
           }
-        } catch (err) {}
-      }
+        }
+      } catch (err) {}
       return;
     }
 
@@ -322,15 +314,19 @@ export default function MockInterviewScreen() {
     }
     setMicVolume(0);
 
-    // expo-av recording
+    // expo-audio recording
     if (expoRecordingRef.current) {
       try {
-        await expoRecordingRef.current.stopAndUnloadAsync();
-        const uri = expoRecordingRef.current.getURI();
+        if (typeof expoRecordingRef.current.stop === 'function') {
+          await expoRecordingRef.current.stop();
+        } else if (typeof expoRecordingRef.current.stopAndUnloadAsync === 'function') {
+          await expoRecordingRef.current.stopAndUnloadAsync();
+        }
+        const uri = expoRecordingRef.current.getURI?.() || expoRecordingRef.current.uri;
         expoRecordingRef.current = null;
         return uri;
       } catch (err) {
-        console.warn('Failed to stop expo-av recording:', err);
+        console.warn('Failed to stop audio recording:', err);
         expoRecordingRef.current = null;
       }
     }

@@ -88,7 +88,7 @@ export class EmailService {
           </div>
           <div class="otp-box">
             <div class="otp-code">${otpCode}</div>
-            <div class="otp-expiry">This code will expire in 10 minutes.</div>
+            <div class="otp-expiry">This code will expire in 30 minutes.</div>
           </div>
           <div class="desc" style="font-size: 13px; margin-bottom: 0;">
             If you did not initiate this account creation, you can safely disregard this email. Your account will not be created without this verification.
@@ -108,7 +108,7 @@ export class EmailService {
           from: ENV.SMTP_FROM,
           to: toEmail,
           subject,
-          text: `Your AI Mentor verification code is: ${otpCode}. It expires in 10 minutes.`,
+          text: `Your AI Mentor verification code is: ${otpCode}. It expires in 30 minutes.`,
           html,
         });
         console.log(`[EmailService] OTP email successfully dispatched to ${toEmail}`);
