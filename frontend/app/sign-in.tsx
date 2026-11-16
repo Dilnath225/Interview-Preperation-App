@@ -21,6 +21,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/them
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -138,17 +139,21 @@ export default function SignInScreen() {
         >
           <ResponsiveContainer maxWidth={460}>
             {/* Sparkle Icon */}
-            <View style={styles.iconContainer}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="sparkles" size={30} color={Colors.primary} />
+            <AnimatedEntrance delay={0} direction="down">
+              <View style={styles.iconContainer}>
+                <View style={styles.iconCircle}>
+                  <Ionicons name="sparkles" size={30} color={Colors.primary} />
+                </View>
               </View>
-            </View>
 
-            {/* Heading */}
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Your AI interview mentor is ready to help you excel.
-            </Text>
+              {/* Heading */}
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>
+                Your AI interview mentor is ready to help you excel.
+              </Text>
+            </AnimatedEntrance>
+
+            <AnimatedEntrance delay={80} direction="up">
 
             {requireOtp ? (
               /* OTP CONFIRMATION BOX FOR UNVERIFIED ACCOUNTS */
@@ -272,6 +277,7 @@ export default function SignInScreen() {
                 <Text style={styles.recruiterBannerSub}>Switch to Enterprise Recruiter Portal →</Text>
               </View>
             </TouchableOpacity>
+            </AnimatedEntrance>
           </ResponsiveContainer>
         </ScrollView>
       </KeyboardAvoidingView>

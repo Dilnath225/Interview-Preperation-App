@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Header } from '../../src/components/Header';
+import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { api } from '../../src/services/api';
 import { useResponsive } from '../../src/hooks/useResponsive';
 
@@ -326,8 +327,8 @@ export default function AIChatScreen() {
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
           {messages.map((msg) => (
+            <AnimatedEntrance key={msg.id} delay={0} direction="up" distance={10}>
             <View
-              key={msg.id}
               style={[
                 styles.messageRow,
                 msg.sender === 'user' ? styles.userRow : styles.aiRow,
@@ -377,6 +378,7 @@ export default function AIChatScreen() {
                 <Text style={styles.timestamp}>{msg.timestamp}</Text>
               </View>
             </View>
+            </AnimatedEntrance>
           ))}
 
           {isLoading && (

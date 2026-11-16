@@ -21,6 +21,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/them
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -173,7 +174,7 @@ export default function SignUpScreen() {
           <ResponsiveContainer maxWidth={500}>
             {/* STEP 1: REGISTRATION FORM */}
             {step === 'form' ? (
-              <>
+              <AnimatedEntrance delay={0} direction="up">
               {/* Header Icon */}
               <View style={styles.iconContainer}>
                 <View style={styles.iconCircle}>
@@ -282,9 +283,10 @@ export default function SignUpScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            </>
+            </AnimatedEntrance>
           ) : (
             /* STEP 2: EMAIL OTP VERIFICATION */
+            <AnimatedEntrance delay={0} scale>
             <View style={styles.otpCard}>
               <View style={styles.otpIconCircle}>
                 <Ionicons name="mail-unread-outline" size={38} color={Colors.primary} />
@@ -362,6 +364,7 @@ export default function SignUpScreen() {
                 </Text>
               </View>
             </View>
+            </AnimatedEntrance>
           )}
           </ResponsiveContainer>
         </ScrollView>

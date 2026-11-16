@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Header } from '../src/components/Header';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
@@ -302,39 +303,42 @@ export default function TargetCompaniesScreen() {
       >
         <ResponsiveContainer>
           {/* Elite Preparation Hero Header */}
-        <View style={styles.heroSection}>
-          <View style={styles.eliteBadgeRow}>
-            <Text style={styles.eliteBadgeText}>ELITE PREPARATION</Text>
-          </View>
-          <Text style={styles.heroMainTitle}>Target Top Companies</Text>
-          <Text style={styles.heroSubtitle}>
-            Tailored AI simulations calibrated to specific corporate hiring benchmarks.
-          </Text>
-        </View>
+          <AnimatedEntrance delay={0} direction="down">
+            <View style={styles.heroSection}>
+              <View style={styles.eliteBadgeRow}>
+                <Text style={styles.eliteBadgeText}>ELITE PREPARATION</Text>
+              </View>
+              <Text style={styles.heroMainTitle}>Target Top Companies</Text>
+              <Text style={styles.heroSubtitle}>
+                Tailored AI simulations calibrated to specific corporate hiring benchmarks.
+              </Text>
+            </View>
 
-        {/* Search Bar matching screenshot */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color={Colors.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search tech giants, stacks (Java, React, AWS)..."
-            placeholderTextColor={Colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchBtn}>
-              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+            {/* Search Bar matching screenshot */}
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color={Colors.textMuted} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search tech giants, stacks (Java, React, AWS)..."
+                placeholderTextColor={Colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchBtn}>
+                  <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </AnimatedEntrance>
 
-        {/* Tab & Category Filter Switcher */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterPillsRow}
-        >
+          {/* Tab & Category Filter Switcher */}
+          <AnimatedEntrance delay={80} direction="up">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterPillsRow}
+            >
           <TouchableOpacity
             style={[styles.filterPill, activeTab === 'all' && styles.filterPillActive]}
             onPress={() => setActiveTab('all')}
@@ -407,7 +411,9 @@ export default function TargetCompaniesScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
+        </AnimatedEntrance>
 
+        <AnimatedEntrance delay={140} direction="up">
         {/* ========================================================
             VIEW 1: JOB OPENINGS NOWADAYS (Dedicated Live Vacancies)
         ======================================================== */}
@@ -763,6 +769,7 @@ export default function TargetCompaniesScreen() {
             </View>
           </View>
         )}
+        </AnimatedEntrance>
         </ResponsiveContainer>
       </ScrollView>
 

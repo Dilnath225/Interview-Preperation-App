@@ -3,8 +3,8 @@
  * Bottom navigation with 5 tabs matching design: HOME, INTERVIEWS, PRACTICE, AI CHAT, PROFILE
  * Responsive floating dock on desktop / tablet web, and standard bottom bar on mobile
  */
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,88 @@ export interface TabBarProps {
   navigation?: any;
   insets?: any;
 }
+
+const TabItem: React.FC<{
+  route: any;
+  isFocused: boolean;
+  options: any;
+  onPress: () => void;
+  isFloating: boolean;
+  isSmallPhone: boolean;
+  iconName: any;
+  label: string;
+}> = ({ isFocused, options, onPress, isFloating, isSmallPhone, iconName, label }) => {
+  const scaleAnim = useRef(new Animated.Value(isFocused ? 1 : 0.95)).current;
+  const dotAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: isFocused ? 1.08 : 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(dotAnim, {
+        toValue: isFocused ? 1 : 0,
+        duration: 220,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start(() => {
+      if (isFocused) {
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 80,
+          useNativeDriver: Platform.OS !== 'web',
+        }).start();
+      }
+    });
+  }, [isFocused]);
+
+  const activeColor = Colors.primary;
+  const inactiveColor = Colors.tabInactive;
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={isFocused ? { selected: true } : {}}
+      accessibilityLabel={options.tabBarAccessibilityLabel}
+      testID={options.tabBarButtonTestID}
+      onPress={onPress}
+      style={[styles.tabButton, isFloating && styles.floatingTabButton]}
+      activeOpacity={0.7}
+    >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
+        <Ionicons
+          name={iconName}
+          size={isFloating ? 20 : 22}
+          color={isFocused ? activeColor : inactiveColor}
+        />
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.tabLabel,
+            isSmallPhone && styles.tabLabelSmall,
+            { color: isFocused ? activeColor : inactiveColor },
+            isFocused && styles.tabLabelActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.activeDot,
+          {
+            opacity: dotAnim,
+            transform: [{ scale: dotAnim }],
+          },
+        ]}
+      />
+    </TouchableOpacity>
+  );
+};
 
 export const CustomTabBar: React.FC<TabBarProps> = ({
   state,
@@ -107,34 +189,17 @@ export const CustomTabBar: React.FC<TabBarProps> = ({
           const inactiveColor = Colors.tabInactive;
 
           return (
-            <TouchableOpacity
+            <TabItem
               key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              testID={options.tabBarButtonTestID}
+              route={route}
+              isFocused={isFocused}
+              options={options}
               onPress={onPress}
-              style={[styles.tabButton, isFloating && styles.floatingTabButton]}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={iconName}
-                size={isFloating ? 20 : 22}
-                color={isFocused ? activeColor : inactiveColor}
-              />
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.tabLabel,
-                  isSmallPhone && styles.tabLabelSmall,
-                  { color: isFocused ? activeColor : inactiveColor },
-                  isFocused && styles.tabLabelActive,
-                ]}
-              >
-                {label}
-              </Text>
-              {isFocused && <View style={styles.activeDot} />}
-            </TouchableOpacity>
+              isFloating={isFloating}
+              isSmallPhone={isSmallPhone}
+              iconName={iconName}
+              label={label}
+            />
           );
         })}
       </View>

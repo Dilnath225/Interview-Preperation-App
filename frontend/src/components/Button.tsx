@@ -2,7 +2,7 @@
  * AI Mentor - Button Component
  * Primary (cyan filled), Secondary (dark outlined), Ghost variants
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  Animated,
+  Platform,
 } from 'react-native';
 import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../constants/theme';
 
@@ -81,25 +83,49 @@ export const Button: React.FC<ButtonProps> = ({
     return base;
   };
 
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: Platform.OS !== 'web',
+      friction: 8,
+      tension: 100,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+      friction: 6,
+      tension: 100,
+    }).start();
+  };
+
   return (
-    <TouchableOpacity
-      style={getButtonStyle()}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
-      {loading ? (
-        <ActivityIndicator
-          color={variant === 'primary' ? Colors.background : Colors.primary}
-          size="small"
-        />
-      ) : (
-        <>
-          {icon && icon}
-          <Text style={getTextStyle()}>{title}</Text>
-        </>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={[{ transform: [{ scale: scaleAnim }] }, fullWidth && styles.fullWidth]}>
+      <TouchableOpacity
+        style={getButtonStyle()}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+        activeOpacity={0.85}
+      >
+        {loading ? (
+          <ActivityIndicator
+            color={variant === 'primary' ? Colors.background : Colors.primary}
+            size="small"
+          />
+        ) : (
+          <>
+            {icon && icon}
+            <Text style={getTextStyle()}>{title}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 

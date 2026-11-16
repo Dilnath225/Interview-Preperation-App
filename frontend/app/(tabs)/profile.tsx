@@ -36,6 +36,7 @@ import { Header } from '../../src/components/Header';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { Button } from '../../src/components/Button';
 import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { useAuth } from '../../src/context/AuthContext';
 import { api, API_BASE_URL } from '../../src/services/api';
@@ -672,6 +673,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ResponsiveContainer maxWidth={isDesktop ? 1160 : 720}>
+          <AnimatedEntrance delay={0} direction="up">
           {isDesktop ? (
             <View style={styles.desktopProfileLayout}>
               <View style={styles.desktopProfileLeftCol}>
@@ -699,6 +701,7 @@ export default function ProfileScreen() {
               {renderSignOutButton()}
             </>
           )}
+          </AnimatedEntrance>
         </ResponsiveContainer>
       </ScrollView>
 

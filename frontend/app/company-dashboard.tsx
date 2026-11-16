@@ -27,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 import { api, API_BASE_URL } from '../src/services/api';
 
@@ -348,6 +349,7 @@ export default function CompanyDashboardScreen() {
     <SafeAreaView style={styles.container}>
       <ResponsiveContainer>
         {/* Top Recruiter Header */}
+        <AnimatedEntrance delay={0} direction="down">
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.companyHeaderLeft}
@@ -476,6 +478,9 @@ export default function CompanyDashboardScreen() {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        </AnimatedEntrance>
+
+        <AnimatedEntrance delay={80} direction="up" style={{ flex: 1 }}>
 
         {/* Tab 1: Posted Jobs */}
         {activeTab === 'jobs' && (
@@ -890,6 +895,7 @@ export default function CompanyDashboardScreen() {
             </View>
           </ScrollView>
         )}
+        </AnimatedEntrance>
 
         {/* ========================================================
             MODAL: POST A JOB

@@ -1,13 +1,15 @@
 /**
  * AI Mentor - Card Component
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
   StyleProp,
+  Animated,
+  Platform,
 } from 'react-native';
 import { Colors, BorderRadius, Spacing, Shadows } from '../constants/theme';
 
@@ -46,15 +48,39 @@ export const Card: React.FC<CardProps> = ({
     return base;
   };
 
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.985,
+      useNativeDriver: Platform.OS !== 'web',
+      friction: 8,
+      tension: 100,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+      friction: 6,
+      tension: 100,
+    }).start();
+  };
+
   if (onPress) {
     return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={onPress}
-        style={[getCardStyle(), style]}
-      >
-        {children}
-      </TouchableOpacity>
+      <Animated.View style={[{ transform: [{ scale: scaleAnim }] }]}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          style={[getCardStyle(), style]}
+        >
+          {children}
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 

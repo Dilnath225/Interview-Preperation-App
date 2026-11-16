@@ -20,6 +20,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/t
 import { Header } from '../../src/components/Header';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { useAuth } from '../../src/context/AuthContext';
 import { api } from '../../src/services/api';
@@ -152,109 +153,120 @@ export default function HomeScreen() {
       >
         <ResponsiveContainer>
           {/* Welcome Banner */}
-          <View style={styles.welcomeSection}>
-            <View>
-              <Text style={styles.welcomeSub}>Career Accelerator Platform</Text>
-              <Text style={styles.userName}>Hello, {userName}!</Text>
+          <AnimatedEntrance delay={0} direction="down">
+            <View style={styles.welcomeSection}>
+              <View>
+                <Text style={styles.welcomeSub}>Career Accelerator Platform</Text>
+                <Text style={styles.userName}>Hello, {userName}!</Text>
+              </View>
             </View>
-          </View>
+          </AnimatedEntrance>
 
           {/* Prominent Live Job Openings & Target Companies Hero Banner (Mobile & Desktop) */}
-          <TouchableOpacity
-            style={styles.prominentJobBanner}
-            onPress={() => router.push('/target-companies')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.jobBannerIconBox}>
-              <Ionicons name="briefcase" size={24} color="#00F5D4" />
-            </View>
-            <View style={{ flex: 1, paddingRight: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Text style={styles.jobBannerHeading}>Live Tech Job Openings</Text>
-                <View style={styles.jobHiringBadge}>
-                  <Text style={styles.jobHiringBadgeText}>HIRING NOW</Text>
-                </View>
+          <AnimatedEntrance delay={80} scale>
+            <TouchableOpacity
+              style={styles.prominentJobBanner}
+              onPress={() => router.push('/target-companies')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.jobBannerIconBox}>
+                <Ionicons name="briefcase" size={24} color="#00F5D4" />
               </View>
-              <Text style={styles.jobBannerSubtitle}>
-                Target top Sri Lankan & global companies. Apply directly with your AI Mentor CV.
-              </Text>
-            </View>
-            <View style={styles.jobBannerArrow}>
-              <Ionicons name="arrow-forward" size={18} color="#00F5D4" />
-            </View>
-          </TouchableOpacity>
+              <View style={{ flex: 1, paddingRight: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={styles.jobBannerHeading}>Live Tech Job Openings</Text>
+                  <View style={styles.jobHiringBadge}>
+                    <Text style={styles.jobHiringBadgeText}>HIRING NOW</Text>
+                  </View>
+                </View>
+                <Text style={styles.jobBannerSubtitle}>
+                  Target top Sri Lankan & global companies. Apply directly with your AI Mentor CV.
+                </Text>
+              </View>
+              <View style={styles.jobBannerArrow}>
+                <Ionicons name="arrow-forward" size={18} color="#00F5D4" />
+              </View>
+            </TouchableOpacity>
+          </AnimatedEntrance>
 
           {/* Quick Action Cards (4 items - Responsive Grid) */}
           <View style={styles.quickActionsGrid}>
             {quickActions.map((action, idx) => (
-              <TouchableOpacity
+              <AnimatedEntrance
                 key={idx}
-                style={[
-                  styles.actionCard,
-                  isLargeScreen && styles.actionCardDesktop,
-                ]}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.8}
+                delay={120 + idx * 50}
+                scale
+                style={isLargeScreen ? { width: '48%' } : { width: '100%' }}
               >
-                <View style={styles.actionCardTop}>
-                  <View style={[styles.actionIconBox, { backgroundColor: action.bgColor }]}>
-                    <Ionicons name={action.icon} size={22} color={action.color} />
+                <TouchableOpacity
+                  style={[
+                    styles.actionCard,
+                    isLargeScreen && styles.actionCardDesktop,
+                  ]}
+                  onPress={() => router.push(action.route as any)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.actionCardTop}>
+                    <View style={[styles.actionIconBox, { backgroundColor: action.bgColor }]}>
+                      <Ionicons name={action.icon} size={22} color={action.color} />
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color={Colors.textMuted} />
                   </View>
-                  <Ionicons name="arrow-forward" size={16} color={Colors.textMuted} />
-                </View>
 
-                <View>
-                  <Text style={styles.actionCardText}>{action.title}</Text>
-                  <Text style={styles.actionCardSub}>{action.subtitle}</Text>
-                </View>
-              </TouchableOpacity>
+                  <View>
+                    <Text style={styles.actionCardText}>{action.title}</Text>
+                    <Text style={styles.actionCardSub}>{action.subtitle}</Text>
+                  </View>
+                </TouchableOpacity>
+              </AnimatedEntrance>
             ))}
           </View>
 
           {/* Dual Column Layout on Desktop: Left Readiness / Right Recommended */}
-          <View style={isDesktop ? styles.desktopTwoColRow : styles.mobileStack}>
-            {/* Readiness Card */}
-            <View style={[styles.progressCard, isDesktop && styles.progressCardDesktopCol]}>
-              <View style={styles.progressLeft}>
-                <View style={styles.cardHeaderSmall}>
-                  <Ionicons name="shield-checkmark" size={16} color={Colors.primary} />
-                  <Text style={styles.cardHeaderSmallText}>EXECUTIVE READINESS</Text>
-                </View>
-
-                <Text style={styles.progressTitle}>Interview Readiness</Text>
-                <Text style={styles.progressDescription}>
-                  {readiness.description}
-                </Text>
-
-                <View style={styles.badgesRow}>
-                  <View style={[styles.pillBadgeSuccess, { backgroundColor: readiness.badgeBg }]}>
-                    <Text style={[styles.pillBadgeSuccessText, { color: readiness.badgeColor }]}>
-                      {readiness.badge}
-                    </Text>
+          <AnimatedEntrance delay={300} direction="up">
+            <View style={isDesktop ? styles.desktopTwoColRow : styles.mobileStack}>
+              {/* Readiness Card */}
+              <View style={[styles.progressCard, isDesktop && styles.progressCardDesktopCol]}>
+                <View style={styles.progressLeft}>
+                  <View style={styles.cardHeaderSmall}>
+                    <Ionicons name="shield-checkmark" size={16} color={Colors.primary} />
+                    <Text style={styles.cardHeaderSmallText}>EXECUTIVE READINESS</Text>
                   </View>
-                  {stats?.completedInterviews > 0 && (
-                    <View style={styles.pillBadgeMuted}>
-                      <Text style={styles.pillBadgeMutedText}>
-                        {stats.completedInterviews} SESSIONS COMPLETED
+
+                  <Text style={styles.progressTitle}>Interview Readiness</Text>
+                  <Text style={styles.progressDescription}>
+                    {readiness.description}
+                  </Text>
+
+                  <View style={styles.badgesRow}>
+                    <View style={[styles.pillBadgeSuccess, { backgroundColor: readiness.badgeBg }]}>
+                      <Text style={[styles.pillBadgeSuccessText, { color: readiness.badgeColor }]}>
+                        {readiness.badge}
                       </Text>
                     </View>
-                  )}
+                    {stats?.completedInterviews > 0 && (
+                      <View style={styles.pillBadgeMuted}>
+                        <Text style={styles.pillBadgeMutedText}>
+                          {stats.completedInterviews} SESSIONS COMPLETED
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.progressRingWrapper}>
+                  <ProgressRing progress={readinessScore} size={isSmallPhone ? 74 : 88} strokeWidth={6.5} />
                 </View>
               </View>
 
-              <View style={styles.progressRingWrapper}>
-                <ProgressRing progress={readinessScore} size={isSmallPhone ? 74 : 88} strokeWidth={6.5} />
-              </View>
-            </View>
-
-            {/* Recommended Section */}
-            <View style={[styles.recommendedContainer, isDesktop && styles.recommendedDesktopCol]}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Recommended Drills</Text>
-                <TouchableOpacity onPress={() => router.push('/(tabs)/interviews')}>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </TouchableOpacity>
-              </View>
+              {/* Recommended Section */}
+              <View style={[styles.recommendedContainer, isDesktop && styles.recommendedDesktopCol]}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Recommended Drills</Text>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/interviews')}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </TouchableOpacity>
+                </View>
 
               <View style={styles.recommendedRow}>
                 <TouchableOpacity
@@ -295,8 +307,10 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
+        </AnimatedEntrance>
 
-          {/* Recent Sessions */}
+        {/* Recent Sessions */}
+        <AnimatedEntrance delay={380} direction="up">
           <View style={styles.recentSectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
@@ -351,6 +365,7 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
+          </AnimatedEntrance>
         </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>

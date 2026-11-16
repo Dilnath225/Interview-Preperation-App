@@ -30,6 +30,7 @@ import { Button } from '../../src/components/Button';
 import { AudioWaveform } from '../../src/components/AudioWaveform';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { speechManager } from '../../src/utils/speechRecognition';
 import { api } from '../../src/services/api';
@@ -558,6 +559,7 @@ export default function PracticeScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <ResponsiveContainer>
           {/* Top Active Drill Banner: AI Speech & Pronunciation Studio */}
+          <AnimatedEntrance delay={0} scale>
           <TouchableOpacity
             style={styles.speechDrillCard}
             onPress={() => setStudioVisible(true)}
@@ -605,8 +607,10 @@ export default function PracticeScreen() {
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
+          </AnimatedEntrance>
 
           {/* Practice Modes Navigation */}
+          <AnimatedEntrance delay={100} direction="up">
           <Text style={styles.sectionHeading}>Practice Modes</Text>
 
           <View style={isLargeScreen ? styles.modesDesktopGrid : undefined}>
@@ -670,6 +674,7 @@ export default function PracticeScreen() {
               <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
+          </AnimatedEntrance>
         </ResponsiveContainer>
       </ScrollView>
 

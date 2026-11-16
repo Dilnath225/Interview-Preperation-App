@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/constants/theme';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
@@ -39,17 +40,20 @@ function InitialLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: Colors.background },
-        animation: 'fade',
+        animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        animationDuration: 260,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     >
-      <Stack.Screen name="portal-select" />
+      <Stack.Screen name="index" options={{ animation: 'fade' }} />
+      <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+      <Stack.Screen name="portal-select" options={{ animation: 'fade_from_bottom' }} />
+      <Stack.Screen name="sign-in" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="sign-up" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="company-auth" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="company-dashboard" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="sign-in" />
-      <Stack.Screen name="sign-up" />
-      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="mock-interview" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="coding-challenge" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="leadership-mcq" options={{ animation: 'slide_from_right' }} />

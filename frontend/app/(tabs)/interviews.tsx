@@ -17,6 +17,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../src/constants/t
 import { Header } from '../../src/components/Header';
 import { CategoryCard } from '../../src/components/CategoryCard';
 import { ResponsiveContainer } from '../../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { useResponsive } from '../../src/hooks/useResponsive';
 
 export default function InterviewsScreen() {
@@ -34,74 +35,86 @@ export default function InterviewsScreen() {
       >
         <ResponsiveContainer>
           {/* Title Section */}
-          <View style={styles.headingSection}>
-            <Text style={styles.mainTitle}>Select focus.</Text>
-            <Text style={styles.subtitle}>
-              Tailor your mentor sessions by choosing a specific career milestone.
-            </Text>
-          </View>
+          <AnimatedEntrance delay={0} direction="down">
+            <View style={styles.headingSection}>
+              <Text style={styles.mainTitle}>Select focus.</Text>
+              <Text style={styles.subtitle}>
+                Tailor your mentor sessions by choosing a specific career milestone.
+              </Text>
+            </View>
+          </AnimatedEntrance>
 
           {/* Target Top Companies (Featured Hero Card) */}
-          <CategoryCard
-            title="Target Top Companies"
-            description="Prepare with calibrated benchmarks for Sri Lankan tech leaders (WSO2, IFS, Sysco LABS, LSEG) & Global giants (Google, Meta, Amazon). Includes live job openings & tech stacks."
-            iconName="business-outline"
-            iconColor="#00F5D4"
-            iconBgColor="rgba(0, 245, 212, 0.12)"
-            badge="GLOBAL & LK"
-            style={isLargeScreen ? styles.heroCardDesktop : undefined}
-            onPress={() => router.push('/target-companies')}
-          />
+          <AnimatedEntrance delay={60} scale>
+            <CategoryCard
+              title="Target Top Companies"
+              description="Prepare with calibrated benchmarks for Sri Lankan tech leaders (WSO2, IFS, Sysco LABS, LSEG) & Global giants (Google, Meta, Amazon). Includes live job openings & tech stacks."
+              iconName="business-outline"
+              iconColor="#00F5D4"
+              iconBgColor="rgba(0, 245, 212, 0.12)"
+              badge="GLOBAL & LK"
+              style={isLargeScreen ? styles.heroCardDesktop : undefined}
+              onPress={() => router.push('/target-companies')}
+            />
+          </AnimatedEntrance>
 
           {/* Grid container for desktop, stacked for mobile */}
           <View style={isLargeScreen ? styles.desktopGrid : undefined}>
             {/* Leadership Questions (40 MCQs) */}
-            <CategoryCard
-              title="Leadership Questions"
-              description="40-question scenario papers tiered from Internship to Executive level with instant score review."
-              iconName="ribbon-outline"
-              iconColor="#00F5D4"
-              iconBgColor="rgba(0, 245, 212, 0.12)"
-              badge="40 MCQs"
-              style={isLargeScreen ? styles.gridCardDesktop : undefined}
-              onPress={() => router.push('/leadership-mcq')}
-            />
+            <AnimatedEntrance delay={120} scale style={isLargeScreen ? { width: '48%' } : undefined}>
+              <CategoryCard
+                title="Leadership Questions"
+                description="40-question scenario papers tiered from Internship to Executive level with instant score review."
+                iconName="ribbon-outline"
+                iconColor="#00F5D4"
+                iconBgColor="rgba(0, 245, 212, 0.12)"
+                badge="40 MCQs"
+                style={isLargeScreen ? styles.gridCardDesktop : undefined}
+                onPress={() => router.push('/leadership-mcq')}
+              />
+            </AnimatedEntrance>
 
             {/* Technical */}
-            <CategoryCard
-              title="Technical"
-              description="Code sandbox, system design patterns, and core algorithmic theory."
-              iconName="code-slash-outline"
-              iconColor="#00F5D4"
-              iconBgColor="rgba(0, 245, 212, 0.12)"
-              fullWidth={!isLargeScreen}
-              style={isLargeScreen ? styles.gridCardDesktop : undefined}
-              onPress={() => router.push('/coding-challenge')}
-            />
+            <AnimatedEntrance delay={180} scale style={isLargeScreen ? { width: '48%' } : undefined}>
+              <CategoryCard
+                title="Technical"
+                description="Code sandbox, system design patterns, and core algorithmic theory."
+                iconName="code-slash-outline"
+                iconColor="#00F5D4"
+                iconBgColor="rgba(0, 245, 212, 0.12)"
+                fullWidth={!isLargeScreen}
+                style={isLargeScreen ? styles.gridCardDesktop : undefined}
+                onPress={() => router.push('/coding-challenge')}
+              />
+            </AnimatedEntrance>
 
             {/* Behavioral */}
-            <CategoryCard
-              title="Behavioral"
-              description="STAR method, conflict resolution, and executive scenario logic."
-              iconName="bulb-outline"
-              iconColor="#FFB300"
-              iconBgColor="rgba(255, 179, 0, 0.12)"
-              fullWidth={!isLargeScreen}
-              style={isLargeScreen ? styles.gridCardDesktop : undefined}
-              onPress={() => router.push('/mock-interview')}
-            />
+            <AnimatedEntrance delay={240} scale style={isLargeScreen ? { width: '48%' } : undefined}>
+              <CategoryCard
+                title="Behavioral"
+                description="STAR method, conflict resolution, and executive scenario logic."
+                iconName="bulb-outline"
+                iconColor="#FFB300"
+                iconBgColor="rgba(255, 179, 0, 0.12)"
+                fullWidth={!isLargeScreen}
+                style={isLargeScreen ? styles.gridCardDesktop : undefined}
+                onPress={() => router.push('/mock-interview')}
+              />
+            </AnimatedEntrance>
 
             {/* Final Round (ELITE) */}
-            <CategoryCard
-              title="Final Round"
-              description="Executive alignment, high-stakes decision making, and culture assessment."
-              iconName="shield-checkmark-outline"
-              iconColor="#00F5D4"
-              iconBgColor="rgba(0, 245, 212, 0.12)"
-              badge="ELITE"
-              style={isLargeScreen ? styles.gridCardDesktop : undefined}
-              onPress={() => router.push('/mock-interview')}
-            />
+            <AnimatedEntrance delay={300} scale style={isLargeScreen ? { width: '48%' } : undefined}>
+              <CategoryCard
+                title="Final Round"
+                description="Executive alignment, high-stakes decision making, and culture assessment."
+                iconName="shield-checkmark-outline"
+                iconColor="#00F5D4"
+                iconBgColor="rgba(0, 245, 212, 0.12)"
+                badge="ELITE"
+                style={isLargeScreen ? styles.gridCardDesktop : undefined}
+                onPress={() => router.push('/mock-interview')}
+              />
+            </AnimatedEntrance>
           </View>
         </ResponsiveContainer>
       </ScrollView>

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
+import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 
 export default function PortalSelectScreen() {
@@ -27,121 +28,131 @@ export default function PortalSelectScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ResponsiveContainer>
           {/* Header Brand */}
-          <View style={styles.brandHeader}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="hardware-chip-outline" size={32} color={Colors.primary} />
+          <AnimatedEntrance delay={0} direction="down">
+            <View style={styles.brandHeader}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="hardware-chip-outline" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.brandTitle}>AI MENTOR</Text>
+              <Text style={styles.brandSubtitle}>ENTERPRISE CAREER & TALENT INTELLIGENCE</Text>
             </View>
-            <Text style={styles.brandTitle}>AI MENTOR</Text>
-            <Text style={styles.brandSubtitle}>ENTERPRISE CAREER & TALENT INTELLIGENCE</Text>
-          </View>
+          </AnimatedEntrance>
 
           {/* Heading */}
-          <View style={styles.headingSection}>
-            <Text style={styles.mainHeading}>Select Your Portal</Text>
-            <Text style={styles.subHeading}>
-              Choose how you want to use AI Mentor today.
-            </Text>
-          </View>
+          <AnimatedEntrance delay={80} direction="up">
+            <View style={styles.headingSection}>
+              <Text style={styles.mainHeading}>Select Your Portal</Text>
+              <Text style={styles.subHeading}>
+                Choose how you want to use AI Mentor today.
+              </Text>
+            </View>
+          </AnimatedEntrance>
 
           {/* Dual Portals Container */}
           <View style={[styles.portalsContainer, isLargeScreen && styles.portalsRow]}>
             {/* Candidate Portal Card */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.portalCard, styles.candidateCard]}
-              onPress={() => router.push('/sign-in')}
-            >
-              <View style={styles.cardTopRow}>
-                <View style={[styles.badge, styles.candidateBadge]}>
-                  <Ionicons name="school" size={14} color="#00F5D4" />
-                  <Text style={styles.candidateBadgeText}>CANDIDATE & LEARNER</Text>
+            <AnimatedEntrance delay={160} scale style={{ flex: isLargeScreen ? 1 : undefined }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[styles.portalCard, styles.candidateCard]}
+                onPress={() => router.push('/sign-in')}
+              >
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.badge, styles.candidateBadge]}>
+                    <Ionicons name="school" size={14} color="#00F5D4" />
+                    <Text style={styles.candidateBadgeText}>CANDIDATE & LEARNER</Text>
+                  </View>
+                  <View style={styles.arrowIcon}>
+                    <Ionicons name="arrow-forward" size={18} color="#00F5D4" />
+                  </View>
                 </View>
-                <View style={styles.arrowIcon}>
-                  <Ionicons name="arrow-forward" size={18} color="#00F5D4" />
-                </View>
-              </View>
 
-              <Text style={styles.cardTitle}>Looking to Prepare & Get Hired</Text>
-              <Text style={styles.cardDesc}>
-                Practice realistic AI mock interviews, solve technical coding challenges, optimize your resume for ATS, and earn verified enterprise mastery certificates.
-              </Text>
+                <Text style={styles.cardTitle}>Looking to Prepare & Get Hired</Text>
+                <Text style={styles.cardDesc}>
+                  Practice realistic AI mock interviews, solve technical coding challenges, optimize your resume for ATS, and earn verified enterprise mastery certificates.
+                </Text>
 
-              <View style={styles.featuresList}>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
-                  <Text style={styles.featureText}>Realistic AI Video Mock Interviews</Text>
+                <View style={styles.featuresList}>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
+                    <Text style={styles.featureText}>Realistic AI Video Mock Interviews</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
+                    <Text style={styles.featureText}>Technical & Behavioral Drills</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
+                    <Text style={styles.featureText}>Official 100% Mastery Certification</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
+                    <Text style={styles.featureText}>Apply to Top Company Openings</Text>
+                  </View>
                 </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
-                  <Text style={styles.featureText}>Technical & Behavioral Drills</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
-                  <Text style={styles.featureText}>Official 100% Mastery Certification</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#00F5D4" />
-                  <Text style={styles.featureText}>Apply to Top Company Openings</Text>
-                </View>
-              </View>
 
-              <View style={[styles.actionBtn, styles.candidateBtn]}>
-                <Text style={styles.candidateBtnText}>Enter Candidate Portal</Text>
-                <Ionicons name="arrow-forward" size={18} color="#070C12" />
-              </View>
-            </TouchableOpacity>
+                <View style={[styles.actionBtn, styles.candidateBtn]}>
+                  <Text style={styles.candidateBtnText}>Enter Candidate Portal</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#070C12" />
+                </View>
+              </TouchableOpacity>
+            </AnimatedEntrance>
 
             {/* Recruiter / Company Portal Card */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.portalCard, styles.recruiterCard]}
-              onPress={() => router.push('/company-auth')}
-            >
-              <View style={styles.cardTopRow}>
-                <View style={[styles.badge, styles.recruiterBadge]}>
-                  <Ionicons name="business" size={14} color="#38BDF8" />
-                  <Text style={styles.recruiterBadgeText}>ENTERPRISE HIRING</Text>
+            <AnimatedEntrance delay={240} scale style={{ flex: isLargeScreen ? 1 : undefined }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[styles.portalCard, styles.recruiterCard]}
+                onPress={() => router.push('/company-auth')}
+              >
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.badge, styles.recruiterBadge]}>
+                    <Ionicons name="business" size={14} color="#38BDF8" />
+                    <Text style={styles.recruiterBadgeText}>ENTERPRISE HIRING</Text>
+                  </View>
+                  <View style={[styles.arrowIcon, { borderColor: 'rgba(56, 189, 248, 0.4)' }]}>
+                    <Ionicons name="arrow-forward" size={18} color="#38BDF8" />
+                  </View>
                 </View>
-                <View style={[styles.arrowIcon, { borderColor: 'rgba(56, 189, 248, 0.4)' }]}>
-                  <Ionicons name="arrow-forward" size={18} color="#38BDF8" />
-                </View>
-              </View>
 
-              <Text style={styles.cardTitle}>Looking to Hire Elite Talent</Text>
-              <Text style={styles.cardDesc}>
-                Post open tech jobs, review candidate applications with attached CVs, browse pre-vetted candidates with readiness scores, and verify digital credentials.
-              </Text>
+                <Text style={styles.cardTitle}>Looking to Hire Elite Talent</Text>
+                <Text style={styles.cardDesc}>
+                  Post open tech jobs, review candidate applications with attached CVs, browse pre-vetted candidates with readiness scores, and verify digital credentials.
+                </Text>
 
-              <View style={styles.featuresList}>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
-                  <Text style={styles.featureText}>Publish & Manage Job Openings</Text>
+                <View style={styles.featuresList}>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
+                    <Text style={styles.featureText}>Publish & Manage Job Openings</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
+                    <Text style={styles.featureText}>Review Candidate Applications & CVs</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
+                    <Text style={styles.featureText}>Pre-Vetted Talent Pool (Top 5%)</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
+                    <Text style={styles.featureText}>Instant Credential ID Verification</Text>
+                  </View>
                 </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
-                  <Text style={styles.featureText}>Review Candidate Applications & CVs</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
-                  <Text style={styles.featureText}>Pre-Vetted Talent Pool (Top 5%)</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#38BDF8" />
-                  <Text style={styles.featureText}>Instant Credential ID Verification</Text>
-                </View>
-              </View>
 
-              <View style={[styles.actionBtn, styles.recruiterBtn]}>
-                <Text style={styles.recruiterBtnText}>Enter Recruiter Portal</Text>
-                <Ionicons name="arrow-forward" size={18} color="#070C12" />
-              </View>
-            </TouchableOpacity>
+                <View style={[styles.actionBtn, styles.recruiterBtn]}>
+                  <Text style={styles.recruiterBtnText}>Enter Recruiter Portal</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#070C12" />
+                </View>
+              </TouchableOpacity>
+            </AnimatedEntrance>
           </View>
 
           {/* Footer note */}
-          <Text style={styles.footerNote}>
-            AI MENTOR SECURE ENTERPRISE PLATFORM • 2026
-          </Text>
+          <AnimatedEntrance delay={320} direction="up">
+            <Text style={styles.footerNote}>
+              AI MENTOR SECURE ENTERPRISE PLATFORM • 2026
+            </Text>
+          </AnimatedEntrance>
         </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>
