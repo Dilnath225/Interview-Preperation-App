@@ -8,7 +8,8 @@
     "userInterfaceStyle": "dark",
     "scheme": "ai-mentor",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aimentor.app"
     },
     "android": {
       "package": "com.aimentor.app",
