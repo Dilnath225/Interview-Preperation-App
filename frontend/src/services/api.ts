@@ -59,6 +59,29 @@ const getBaseUrl = (): string => {
 
 export const API_BASE_URL = getBaseUrl();
 console.log(`[API Base URL configured for ${Platform.OS}]:`, API_BASE_URL);
+
+/**
+ * Universal helper to resolve image URLs safely across Web, iOS, and Android
+ * Supports full URLs, base64 data URIs, and backend-relative paths
+ */
+export const getImageSource = (raw?: string | null): { uri: string } | null => {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (
+    !trimmed ||
+    trimmed === 'data:image/jpeg;base64,undefined' ||
+    trimmed === 'data:image/png;base64,undefined' ||
+    trimmed === 'null' ||
+    trimmed === 'undefined'
+  ) {
+    return null;
+  }
+  if (trimmed.startsWith('data:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return { uri: trimmed };
+  }
+  const base = API_BASE_URL.replace(/\/api$/, '');
+  return { uri: `${base}${trimmed.startsWith('/') ? '' : '/'}${trimmed}` };
+};
 const TOKEN_KEY = 'ai_mentor_auth_token';
 const COMPANY_TOKEN_KEY = 'ai_mentor_company_token';
 
@@ -650,6 +673,36 @@ class ApiClient {
     logoUrl?: string;
   }) {
     return this.request<any>('put', '/company/profile', data);
+  }
+
+  async uploadCompanyLogo(fileOrAsset: any) {
+    if (typeof fileOrAsset === 'string') {
+      return this.updateCompanyProfile({ logoUrl: fileOrAsset });
+    }
+    const formData = new FormData();
+    if (Platform.OS === 'web') {
+      if (fileOrAsset.file) {
+        formData.append('logo', fileOrAsset.file, fileOrAsset.name || 'logo.jpg');
+      } else if (fileOrAsset.uri) {
+        try {
+          const resp = await fetch(fileOrAsset.uri);
+          const blob = await resp.blob();
+          formData.append('logo', blob, 'logo.jpg');
+        } catch (e) {
+          console.warn('Failed to convert web logo uri to blob:', e);
+        }
+      }
+    } else {
+      const filename = fileOrAsset.uri?.split('/').pop() || 'logo.jpg';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      formData.append('logo', {
+        uri: fileOrAsset.uri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
+    return this.request<{ logoUrl: string; company?: any }>('post', '/company/logo', formData);
   }
 
   async updatecompanyProfile(data: any) {

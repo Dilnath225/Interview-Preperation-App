@@ -11,11 +11,21 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─────────────────────────────────────────────────────────
+// ROLE ENUM
+// ─────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  SUPER_ADMIN
+}
+
 model User {
   id             String             @id @default(uuid())
   email          String             @unique
   password       String
   name           String
+  role           Role               @default(USER)
   targetRole     String?            @default("Full Stack Developer")
   readinessScore Int?               @default(65)
   skills         String?            @default("React, TypeScript, Node.js, SQL")
@@ -29,6 +39,15 @@ model User {
   education      String?
   githubUrl      String?
   linkedinUrl    String?
+
+  // ── Telemetry & Presence Fields ──
+  lastLat        Float?
+  lastLng        Float?
+  lastCity       String?
+  lastCountry    String?
+  isOnline       Boolean            @default(false)
+  lastSeenAt     DateTime?
+
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -39,6 +58,25 @@ model User {
   technicalAssessments TechnicalAssessment[]
   certificates         Certificate[]
   jobApplications      JobApplication[]
+  locationLogs         UserLocationLog[]
+}
+
+// ─────────────────────────────────────────────────────────
+// USER LOCATION TELEMETRY LOG
+// ─────────────────────────────────────────────────────────
+
+model UserLocationLog {
+  id              String   @id @default(uuid())
+  userId          String
+  latitude        Float
+  longitude       Float
+  accuracy        Float?
+  activityContext String?  // IDLE, MOCK_INTERVIEW, CODING_SANDBOX, ATS_SCANNER, CAREER_COACH
+  recordedAt      DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
 }
 
 model InterviewSession {

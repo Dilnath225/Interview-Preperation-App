@@ -20,4 +20,6 @@ export const ENV = {
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || (process.env.SMTP_USER ? `"AI Mentor" <${process.env.SMTP_USER}>` : '"AI Mentor" <no-reply@aimentor.app>'),
+  // Super-Admin Telemetry
+  SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL || '',
 };

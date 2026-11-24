@@ -67,6 +67,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/ai_mentor_db?schema=public
       - ML_SERVICE_URL=http://ml-model:8001
       - CLIENT_URL=http://localhost:8080
+      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL:-sunerarathnayaka@gmail.com}
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,6 +82,19 @@ services:
     restart: always
     ports:
       - "8080:80"
+    depends_on:
+      - backend
+
+  admin-portal:
+    build:
+      context: ./admin-portal
+      dockerfile: Dockerfile
+    container_name: ai_mentor_admin
+    restart: always
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://backend:5000
     depends_on:
       - backend
 

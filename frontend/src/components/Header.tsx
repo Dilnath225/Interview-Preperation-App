@@ -4,7 +4,7 @@
  * Responsive desktop top navbar & mobile clean header
  */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/theme';
@@ -12,6 +12,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { NotificationModal, NotificationToastBanner } from './NotificationModal';
 import { useResponsive } from '../hooks/useResponsive';
 import { useAuth } from '../context/AuthContext';
+import { getImageSource } from '../services/api';
 
 interface HeaderProps {
   title?: string;
@@ -78,6 +79,8 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'ATS Resume', path: '/resume-review', icon: 'document-text-outline' },
   ];
 
+  const avatarSrc = getImageSource(user?.avatarUrl);
+
   return (
     <>
       <NotificationToastBanner />
@@ -101,7 +104,11 @@ export const Header: React.FC<HeaderProps> = ({
                 style={styles.avatarContainer}
               >
                 <View style={styles.avatarBorder}>
-                  <Ionicons name="person" size={18} color={Colors.primary} />
+                  {avatarSrc ? (
+                    <Image source={avatarSrc} style={styles.headerAvatarImg} />
+                  ) : (
+                    <Ionicons name="person" size={18} color={Colors.primary} />
+                  )}
                 </View>
               </TouchableOpacity>
             ) : null}
@@ -170,7 +177,11 @@ export const Header: React.FC<HeaderProps> = ({
                 style={styles.userProfilePill}
                 activeOpacity={0.8}
               >
-                <View style={styles.userStatusDot} />
+                {avatarSrc ? (
+                  <Image source={avatarSrc} style={styles.userPillAvatar} />
+                ) : (
+                  <View style={styles.userStatusDot} />
+                )}
                 <Text style={styles.userProfileName} numberOfLines={1}>
                   {user.name.split(' ')[0]}
                 </Text>
@@ -256,6 +267,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  userPillAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 2,
   },
   title: {
     fontSize: Typography.h5,

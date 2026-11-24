@@ -40,6 +40,12 @@ import { AnimatedEntrance } from '../../src/components/AnimatedEntrance';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { useAuth } from '../../src/context/AuthContext';
 import { api, API_BASE_URL } from '../../src/services/api';
+import {
+  resolveImageUrl,
+  pickImageUniversal,
+  captureCameraUniversal,
+  PRESET_CANDIDATE_AVATARS,
+} from '../../src/utils/imagePicker';
 
 const POPULAR_ROLES = [
   'Full Stack Developer',
@@ -192,79 +198,55 @@ export default function ProfileScreen() {
   // Avatar Management
   const handlePickFromGallery = async () => {
     setAvatarModalVisible(false);
-    const picker = getImagePicker();
-    if (!picker) {
-      Alert.alert(
-        'Picker Not Available in Expo Go',
-        'Camera roll requires a custom development build. Please choose one of the stylish preset avatars below!'
-      );
-      return;
-    }
     try {
-      const { status } = await picker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera roll permissions are required to select a photo.');
+      setUploadingAvatar(true);
+      const picked = await pickImageUniversal();
+      if (!picked) {
+        setUploadingAvatar(false);
         return;
       }
 
-      const result = await picker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadAvatarFile(result.assets[0]);
+      // Save directly to user profile (persists dataUrl permanently in PostgreSQL DB)
+      const res = await api.updateProfile({ avatarUrl: picked.dataUrl });
+      if (res.success && res.data?.user) {
+        updateUser({ avatarUrl: picked.dataUrl });
+        Alert.alert('Success', 'Profile picture updated successfully and persisted!');
+      } else {
+        // Fallback to uploadAvatar endpoint if available
+        const fallback = await api.uploadAvatar(picked.asset || { file: picked.file, uri: picked.dataUrl });
+        if (fallback.success && fallback.data?.avatarUrl) {
+          updateUser({ avatarUrl: fallback.data.avatarUrl });
+          Alert.alert('Success', 'Profile picture updated successfully!');
+        } else {
+          Alert.alert('Upload Failed', res.message || 'Could not update profile picture.');
+        }
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not pick image.');
+      Alert.alert('Upload Error', err.message || 'Could not select photo.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
   const handleTakePhoto = async () => {
     setAvatarModalVisible(false);
-    const picker = getImagePicker();
-    if (!picker) {
-      Alert.alert(
-        'Camera Not Available in Expo Go',
-        'Direct camera capture requires a custom development build. Please choose one of the stylish preset avatars below!'
-      );
-      return;
-    }
     try {
-      const { status } = await picker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera permission is required to capture a photo.');
+      setUploadingAvatar(true);
+      const captured = await captureCameraUniversal();
+      if (!captured) {
+        setUploadingAvatar(false);
         return;
       }
 
-      const result = await picker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadAvatarFile(result.assets[0]);
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not capture photo.');
-    }
-  };
-
-  const uploadAvatarFile = async (asset: any) => {
-    setUploadingAvatar(true);
-    try {
-      const res = await api.uploadAvatar(asset);
-      if (res.success && res.data?.avatarUrl) {
-        updateUser({ avatarUrl: res.data.avatarUrl });
-        Alert.alert('Success', 'Profile picture updated successfully!');
+      const res = await api.updateProfile({ avatarUrl: captured.dataUrl });
+      if (res.success && res.data?.user) {
+        updateUser({ avatarUrl: captured.dataUrl });
+        Alert.alert('Success', 'Profile photo captured and updated successfully!');
       } else {
-        Alert.alert('Upload Failed', res.message || 'Could not upload avatar.');
+        Alert.alert('Save Failed', res.message || 'Could not save captured photo.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to upload image.');
+      Alert.alert('Camera Error', err.message || 'Could not capture photo.');
     } finally {
       setUploadingAvatar(false);
     }
@@ -277,6 +259,7 @@ export default function ProfileScreen() {
       const res = await api.updateProfile({ avatarUrl: presetUrl });
       if (res.success && res.data?.user) {
         updateUser({ avatarUrl: presetUrl });
+        Alert.alert('Success', 'Preset avatar selected and saved!');
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not apply preset avatar.');
@@ -292,6 +275,7 @@ export default function ProfileScreen() {
       const res = await api.updateProfile({ avatarUrl: '' });
       if (res.success) {
         updateUser({ avatarUrl: null });
+        Alert.alert('Success', 'Profile picture removed.');
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not remove avatar.');
@@ -395,13 +379,9 @@ export default function ProfileScreen() {
     ]);
   };
 
-  // Compute full avatar image URL
+  // Compute full avatar image URL safely
   const getAvatarSource = () => {
-    const raw = user?.avatarUrl;
-    if (!raw) return null;
-    if (raw.startsWith('http')) return { uri: raw };
-    const base = API_BASE_URL.replace(/\/api$/, '');
-    return { uri: `${base}${raw}` };
+    return resolveImageUrl(user?.avatarUrl);
   };
 
   const readinessScore =

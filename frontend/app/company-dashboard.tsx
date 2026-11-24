@@ -21,20 +21,26 @@ import {
   KeyboardAvoidingView,
   Image,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { ResponsiveContainer } from '../src/components/ResponsiveContainer';
 import { AnimatedEntrance } from '../src/components/AnimatedEntrance';
 import { useResponsive } from '../src/hooks/useResponsive';
 import { api, API_BASE_URL } from '../src/services/api';
+import {
+  resolveImageUrl,
+  pickImageUniversal,
+  captureCameraUniversal,
+  PRESET_COMPANY_LOGOS,
+} from '../src/utils/imagePicker';
 
 type DashboardTab = 'jobs' | 'applications' | 'talent' | 'verify' | 'profile';
 
 export default function CompanyDashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isDesktop, isTablet } = useResponsive();
   const isLargeScreen = isDesktop || isTablet;
 
@@ -61,6 +67,10 @@ export default function CompanyDashboardScreen() {
   const [editDesc, setEditDesc] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Logo Picker Modal State
+  const [logoModalVisible, setLogoModalVisible] = useState(false);
+  const [customLogoUrl, setCustomLogoUrl] = useState('');
 
   // Post Job Modal State
   const [postJobModalVisible, setPostJobModalVisible] = useState(false);
@@ -159,6 +169,17 @@ export default function CompanyDashboardScreen() {
   };
 
   const confirmLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed =
+        typeof window !== 'undefined'
+          ? window.confirm('Are you sure you want to sign out from the Enterprise Recruiter Workspace?')
+          : true;
+      if (confirmed) {
+        handleLogout();
+      }
+      return;
+    }
+
     Alert.alert(
       'Sign Out Recruiter',
       'Are you sure you want to sign out from the Enterprise Recruiter Workspace?',
@@ -210,35 +231,113 @@ export default function CompanyDashboardScreen() {
     }
   };
 
-  const handleUploadLogo = async () => {
+  // ─────────────────────────────────────────────────────────
+  // ENTERPRISE LOGO MANAGEMENT (Web file dialog, Camera & Presets)
+  // ─────────────────────────────────────────────────────────
+
+  const handleOpenLogoModal = () => {
+    setCustomLogoUrl('');
+    setLogoModalVisible(true);
+  };
+
+  const handlePickLogoFromDevice = async () => {
+    setLogoModalVisible(false);
     try {
-      const permRes = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permRes.granted) {
-        Alert.alert('Permission Denied', 'Camera roll access is needed to upload company logo.');
+      setUploadingLogo(true);
+      const picked = await pickImageUniversal({ maxSize: 320, quality: 0.85 });
+      if (!picked) {
+        setUploadingLogo(false);
         return;
       }
 
-      const pickerRes = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-        base64: true,
-      });
-
-      if (!pickerRes.canceled && pickerRes.assets && pickerRes.assets.length > 0) {
-        const asset = pickerRes.assets[0];
-        setUploadingLogo(true);
-        const base64Data = `data:image/jpeg;base64,${asset.base64}`;
-
-        const res = await api.updateCompanyProfile({ logoUrl: base64Data });
-        if (res.success && res.data?.company) {
-          setCompany(res.data.company);
-          Alert.alert('Success', 'Company logo uploaded and updated live!');
+      // 1. Direct base64 Data URL to PostgreSQL DB
+      const res = await api.updateCompanyProfile({ logoUrl: picked.dataUrl });
+      if (res.success && res.data?.company) {
+        setCompany(res.data.company);
+        Alert.alert('Success', 'Company logo uploaded and updated live!');
+      } else {
+        // 2. Fallback to multipart endpoint
+        const fallback = await api.uploadCompanyLogo(picked.asset || { file: picked.file, uri: picked.dataUrl });
+        if (fallback.success && (fallback.data?.company || fallback.data?.logoUrl)) {
+          setCompany(fallback.data.company || { ...company, logoUrl: fallback.data.logoUrl });
+          Alert.alert('Success', 'Company logo uploaded successfully!');
+        } else {
+          Alert.alert('Upload Failed', res.message || 'Could not update company logo.');
         }
       }
     } catch (e: any) {
-      Alert.alert('Upload Error', e.message || 'Failed to update company logo.');
+      Alert.alert('Upload Error', e.message || 'Failed to select image.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleCaptureLogoCamera = async () => {
+    setLogoModalVisible(false);
+    try {
+      setUploadingLogo(true);
+      const captured = await captureCameraUniversal();
+      if (!captured) {
+        setUploadingLogo(false);
+        return;
+      }
+
+      const res = await api.updateCompanyProfile({ logoUrl: captured.dataUrl });
+      if (res.success && res.data?.company) {
+        setCompany(res.data.company);
+        Alert.alert('Success', 'Company logo captured and updated live!');
+      }
+    } catch (e: any) {
+      Alert.alert('Camera Error', e.message || 'Could not capture photo.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSelectPresetLogo = async (presetUrl: string) => {
+    setLogoModalVisible(false);
+    setUploadingLogo(true);
+    try {
+      const res = await api.updateCompanyProfile({ logoUrl: presetUrl });
+      if (res.success && res.data?.company) {
+        setCompany(res.data.company);
+        Alert.alert('Success', 'Enterprise preset logo applied successfully!');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to apply preset logo.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleApplyCustomUrlLogo = async () => {
+    if (!customLogoUrl.trim()) return;
+    setLogoModalVisible(false);
+    setUploadingLogo(true);
+    try {
+      const res = await api.updateCompanyProfile({ logoUrl: customLogoUrl.trim() });
+      if (res.success && res.data?.company) {
+        setCompany(res.data.company);
+        Alert.alert('Success', 'Company logo URL saved successfully!');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not apply logo URL.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoModalVisible(false);
+    setUploadingLogo(true);
+    try {
+      const res = await api.updateCompanyProfile({ logoUrl: '' });
+      if (res.success) {
+        setCompany((prev: any) => ({ ...prev, logoUrl: null }));
+        Alert.alert('Success', 'Company logo removed.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to remove logo.');
     } finally {
       setUploadingLogo(false);
     }
@@ -281,20 +380,32 @@ export default function CompanyDashboardScreen() {
   };
 
   const handleDeleteJob = async (jobId: string) => {
+    const doClose = async () => {
+      try {
+        await api.deleteCompanyJob(jobId);
+        const updated = await api.getCompanyJobs();
+        setJobs(updated?.data?.jobs || []);
+        Alert.alert('Job Closed', 'Job opening has been closed successfully.');
+      } catch (e: any) {
+        Alert.alert('Error', e.message || 'Failed to close job.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed =
+        typeof window !== 'undefined' ? window.confirm('Are you sure you want to close this job opening?') : true;
+      if (confirmed) {
+        doClose();
+      }
+      return;
+    }
+
     Alert.alert('Close Job Posting', 'Are you sure you want to close this job opening?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Close Job',
         style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.deleteCompanyJob(jobId);
-            const updated = await api.getCompanyJobs();
-            setJobs(updated?.data?.jobs || []);
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
+        onPress: doClose,
       },
     ]);
   };
@@ -302,16 +413,33 @@ export default function CompanyDashboardScreen() {
   const handleUpdateAppStatus = async (appId: string, status: string) => {
     try {
       await api.updateApplicationStatus(appId, status);
-      Alert.alert('Status Updated', `Application marked as ${status}`);
-      // Refresh applications
-      const appsRes = await api.getAllCompanyApplications();
-      setApplications(appsRes?.data?.applications || []);
+      // Immediately reflect status in local state
+      setApplications((prev) =>
+        prev.map((app) => (app.id === appId ? { ...app, status } : app))
+      );
       if (selectedApp && selectedApp.id === appId) {
-        setSelectedApp({ ...selectedApp, status });
+        setSelectedApp((prev: any) => ({ ...prev, status }));
       }
+      Alert.alert('Status Updated', `Application marked as ${status}`);
     } catch (e: any) {
-      Alert.alert('Update Failed', e.message);
+      Alert.alert('Update Failed', e.response?.data?.message || e.message || 'Could not update status');
     }
+  };
+
+  const handleOpenCv = (resumeUrl: string) => {
+    if (!resumeUrl) return;
+    const fullUrl = resumeUrl.startsWith('http')
+      ? resumeUrl
+      : `${API_BASE_URL.replace('/api', '')}${resumeUrl.startsWith('/') ? '' : '/'}${resumeUrl}`;
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(fullUrl, '_blank');
+      return;
+    }
+
+    Linking.openURL(fullUrl).catch(() =>
+      Alert.alert('CV Link', `Candidate attached CV: ${resumeUrl}`)
+    );
   };
 
   const handleVerifyCredential = async () => {
@@ -348,36 +476,121 @@ export default function CompanyDashboardScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ResponsiveContainer>
-        {/* Top Recruiter Header */}
+        {/* Top Recruiter Header & Navbar */}
         <AnimatedEntrance delay={0} direction="down">
         <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.companyHeaderLeft}
-            onPress={() => setActiveTab('profile')}
-            activeOpacity={0.8}
-          >
-            {company?.logoUrl ? (
-              <Image source={{ uri: company.logoUrl }} style={styles.companyLogoThumb} />
-            ) : (
-              <View style={styles.companyAvatarPlaceholder}>
-                <Ionicons name="business" size={20} color="#38BDF8" />
-              </View>
-            )}
-            <View style={{ flex: 1, paddingRight: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <Text style={styles.companyNameText} numberOfLines={1}>
-                  {company?.name || 'Enterprise Recruiter'}
-                </Text>
-                <View style={styles.verifiedPill}>
-                  <Ionicons name="checkmark-circle" size={12} color="#38BDF8" />
-                  <Text style={styles.verifiedPillText}>VERIFIED</Text>
+          <View style={styles.topBarLeft}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.push('/portal-select')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.companyHeaderLeft}
+              onPress={() => setActiveTab('profile')}
+              activeOpacity={0.8}
+            >
+              {resolveImageUrl(company?.logoUrl) ? (
+                <Image source={resolveImageUrl(company?.logoUrl)!} style={styles.companyLogoThumb} />
+              ) : (
+                <View style={styles.companyAvatarPlaceholder}>
+                  <Ionicons name="business" size={18} color="#38BDF8" />
                 </View>
+              )}
+              <View style={{ flexShrink: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.companyNameText} numberOfLines={1}>
+                    {company?.name || 'Recruiter Portal'}
+                  </Text>
+                  <View style={styles.verifiedPill}>
+                    <Ionicons name="checkmark-circle" size={11} color="#38BDF8" />
+                    <Text style={styles.verifiedPillText}>RECRUITER</Text>
+                  </View>
+                </View>
+                <Text style={styles.companySub} numberOfLines={1}>
+                  {company?.industry || 'Technology'} • {company?.location || 'Remote'}
+                </Text>
               </View>
-              <Text style={styles.companySub} numberOfLines={1}>
-                {company?.industry || 'Technology'} • {company?.location || 'Remote'}
-              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Desktop Top Navbar Links */}
+          {isLargeScreen && (
+            <View style={styles.desktopNavbarRow}>
+              <TouchableOpacity
+                style={[styles.desktopNavLink, activeTab === 'jobs' && styles.desktopNavLinkActive]}
+                onPress={() => setActiveTab('jobs')}
+              >
+                <Ionicons
+                  name={activeTab === 'jobs' ? 'briefcase' : 'briefcase-outline'}
+                  size={15}
+                  color={activeTab === 'jobs' ? '#38BDF8' : '#94A3B8'}
+                />
+                <Text style={[styles.desktopNavText, activeTab === 'jobs' && styles.desktopNavTextActive]}>
+                  Jobs ({jobs.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.desktopNavLink, activeTab === 'applications' && styles.desktopNavLinkActive]}
+                onPress={() => setActiveTab('applications')}
+              >
+                <Ionicons
+                  name={activeTab === 'applications' ? 'file-tray-full' : 'file-tray-full-outline'}
+                  size={15}
+                  color={activeTab === 'applications' ? '#38BDF8' : '#94A3B8'}
+                />
+                <Text style={[styles.desktopNavText, activeTab === 'applications' && styles.desktopNavTextActive]}>
+                  Applications ({applications.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.desktopNavLink, activeTab === 'talent' && styles.desktopNavLinkActive]}
+                onPress={() => setActiveTab('talent')}
+              >
+                <Ionicons
+                  name={activeTab === 'talent' ? 'people' : 'people-outline'}
+                  size={15}
+                  color={activeTab === 'talent' ? '#38BDF8' : '#94A3B8'}
+                />
+                <Text style={[styles.desktopNavText, activeTab === 'talent' && styles.desktopNavTextActive]}>
+                  Talent ({talentPool.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.desktopNavLink, activeTab === 'verify' && styles.desktopNavLinkActive]}
+                onPress={() => setActiveTab('verify')}
+              >
+                <Ionicons
+                  name={activeTab === 'verify' ? 'shield-checkmark' : 'shield-checkmark-outline'}
+                  size={15}
+                  color={activeTab === 'verify' ? '#38BDF8' : '#94A3B8'}
+                />
+                <Text style={[styles.desktopNavText, activeTab === 'verify' && styles.desktopNavTextActive]}>
+                  Verify ID
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.desktopNavLink, activeTab === 'profile' && styles.desktopNavLinkActive]}
+                onPress={() => setActiveTab('profile')}
+              >
+                <Ionicons
+                  name={activeTab === 'profile' ? 'business' : 'business-outline'}
+                  size={15}
+                  color={activeTab === 'profile' ? '#38BDF8' : '#94A3B8'}
+                />
+                <Text style={[styles.desktopNavText, activeTab === 'profile' && styles.desktopNavTextActive]}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          )}
 
           <View style={styles.topBarActions}>
             <TouchableOpacity
@@ -694,6 +907,21 @@ export default function CompanyDashboardScreen() {
                   <Text style={styles.statPill}>💻 {c.stats?.solvedChallenges || 0} Drills</Text>
                   <Text style={styles.statPill}>📜 {c.stats?.certificateCount || 0} Certs</Text>
                 </View>
+
+                <TouchableOpacity
+                  style={styles.contactTalentBtn}
+                  onPress={() => {
+                    if (c.email) {
+                      Linking.openURL(`mailto:${c.email}?subject=Career Opportunity from ${company?.name || 'Recruiter'}`);
+                    } else {
+                      Alert.alert('Candidate Contact', `${c.name} has a verified readiness score of ${c.readinessScore || 90}%.`);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="mail-outline" size={14} color="#070C12" />
+                  <Text style={styles.contactTalentBtnText}>Contact Candidate</Text>
+                </TouchableOpacity>
               </View>
             ))}
           </ScrollView>
@@ -799,12 +1027,12 @@ export default function CompanyDashboardScreen() {
               <View style={styles.profileHeaderRow}>
                 <TouchableOpacity
                   style={styles.profileLogoContainer}
-                  onPress={handleUploadLogo}
+                  onPress={handleOpenLogoModal}
                   disabled={uploadingLogo}
                   activeOpacity={0.8}
                 >
-                  {company?.logoUrl ? (
-                    <Image source={{ uri: company.logoUrl }} style={styles.profileLogoBig} />
+                  {resolveImageUrl(company?.logoUrl) ? (
+                    <Image source={resolveImageUrl(company?.logoUrl)!} style={styles.profileLogoBig} />
                   ) : (
                     <View style={styles.profileLogoPlaceholder}>
                       <Ionicons name="business" size={36} color="#38BDF8" />
@@ -828,15 +1056,16 @@ export default function CompanyDashboardScreen() {
               {/* Upload Logo CTA */}
               <TouchableOpacity
                 style={styles.uploadLogoBtn}
-                onPress={handleUploadLogo}
+                onPress={handleOpenLogoModal}
                 disabled={uploadingLogo}
+                activeOpacity={0.8}
               >
                 {uploadingLogo ? (
                   <ActivityIndicator color="#070C12" size="small" />
                 ) : (
                   <>
                     <Ionicons name="image-outline" size={16} color="#070C12" />
-                    <Text style={styles.uploadLogoBtnText}>Upload Company Logo</Text>
+                    <Text style={styles.uploadLogoBtnText}>Upload / Change Company Logo</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -902,137 +1131,148 @@ export default function CompanyDashboardScreen() {
         ======================================================== */}
         <Modal
           visible={postJobModalVisible}
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           onRequestClose={() => setPostJobModalVisible(false)}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={{ width: '100%', maxWidth: 540 }}
-              >
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Publish New Tech Opening</Text>
-                    <TouchableOpacity onPress={() => setPostJobModalVisible(false)}>
-                      <Ionicons name="close" size={24} color="#94A3B8" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView
-                    style={{ maxHeight: 420 }}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                  >
-                    <Text style={styles.inputLabel}>Job Title *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. Senior Full Stack & AI Solutions Engineer"
-                      placeholderTextColor="#64748B"
-                      value={jobTitle}
-                      onChangeText={setJobTitle}
-                    />
-
-                    <Text style={styles.inputLabel}>Role Category</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Senior Full Stack & AI Solutions Engineer"
-                      placeholderTextColor="#64748B"
-                      value={targetRole}
-                      onChangeText={setTargetRole}
-                    />
-
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inputLabel}>Location Model</Text>
-                        <TextInput
-                          style={styles.modalInput}
-                          placeholder="Hybrid / Colombo & Remote"
-                          placeholderTextColor="#64748B"
-                          value={jobLocation}
-                          onChangeText={setJobLocation}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inputLabel}>Salary Range</Text>
-                        <TextInput
-                          style={styles.modalInput}
-                          placeholder="$3,500 - $6,500 / month"
-                          placeholderTextColor="#64748B"
-                          value={salaryRange}
-                          onChangeText={setSalaryRange}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inputLabel}>Type</Text>
-                        <TextInput
-                          style={styles.modalInput}
-                          placeholder="FULL_TIME"
-                          placeholderTextColor="#64748B"
-                          value={jobType}
-                          onChangeText={setJobType}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inputLabel}>Experience</Text>
-                        <TextInput
-                          style={styles.modalInput}
-                          placeholder="Senior"
-                          placeholderTextColor="#64748B"
-                          value={experienceLevel}
-                          onChangeText={setExperienceLevel}
-                        />
-                      </View>
-                    </View>
-
-                    <Text style={styles.inputLabel}>Required Skills (comma separated)</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="React, TypeScript, Node.js, PostgreSQL"
-                      placeholderTextColor="#64748B"
-                      value={jobRequirements}
-                      onChangeText={setJobRequirements}
-                    />
-
-                    <Text style={styles.inputLabel}>Job Description & Responsibilities *</Text>
-                    <TextInput
-                      style={[styles.modalInput, { height: 95, textAlignVertical: 'top' }]}
-                      placeholder="Detail the technical responsibilities, team structure, and qualifications..."
-                      placeholderTextColor="#64748B"
-                      value={jobDesc}
-                      onChangeText={setJobDesc}
-                      multiline
-                    />
-
-                    <TouchableOpacity
-                      style={styles.dismissKeypadBtn}
-                      onPress={Keyboard.dismiss}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="chevron-down-circle-outline" size={16} color="#94A3B8" />
-                      <Text style={styles.dismissKeypadText}>Dismiss Keyboard</Text>
-                    </TouchableOpacity>
-                  </ScrollView>
-
-                  <TouchableOpacity
-                    style={styles.modalSubmitBtn}
-                    onPress={handleCreateJob}
-                    disabled={submittingJob}
-                  >
-                    {submittingJob ? (
-                      <ActivityIndicator color="#070C12" />
-                    ) : (
-                      <Text style={styles.modalSubmitBtnText}>Publish Opening to Candidates</Text>
-                    )}
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setPostJobModalVisible(false)}
+            />
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ width: '100%', maxWidth: 540, zIndex: 10 }}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Publish New Tech Opening</Text>
+                  <TouchableOpacity onPress={() => setPostJobModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#94A3B8" />
                   </TouchableOpacity>
                 </View>
-              </KeyboardAvoidingView>
-            </View>
-          </TouchableWithoutFeedback>
+
+                <ScrollView
+                  style={{ maxHeight: 420 }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.inputLabel}>Job Title *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Senior Full Stack & AI Solutions Engineer"
+                    placeholderTextColor="#64748B"
+                    value={jobTitle}
+                    onChangeText={setJobTitle}
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Role Category</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Senior Full Stack & AI Solutions Engineer"
+                    placeholderTextColor="#64748B"
+                    value={targetRole}
+                    onChangeText={setTargetRole}
+                    editable={true}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Location Model</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Hybrid / Colombo & Remote"
+                        placeholderTextColor="#64748B"
+                        value={jobLocation}
+                        onChangeText={setJobLocation}
+                        editable={true}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Salary Range</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="$3,500 - $6,500 / month"
+                        placeholderTextColor="#64748B"
+                        value={salaryRange}
+                        onChangeText={setSalaryRange}
+                        editable={true}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Type</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="FULL_TIME"
+                        placeholderTextColor="#64748B"
+                        value={jobType}
+                        onChangeText={setJobType}
+                        editable={true}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Experience</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Senior"
+                        placeholderTextColor="#64748B"
+                        value={experienceLevel}
+                        onChangeText={setExperienceLevel}
+                        editable={true}
+                      />
+                    </View>
+                  </View>
+
+                  <Text style={styles.inputLabel}>Required Skills (comma separated)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="React, TypeScript, Node.js, PostgreSQL"
+                    placeholderTextColor="#64748B"
+                    value={jobRequirements}
+                    onChangeText={setJobRequirements}
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Job Description & Responsibilities *</Text>
+                  <TextInput
+                    style={[styles.modalInput, { height: 95, textAlignVertical: 'top' }]}
+                    placeholder="Detail the technical responsibilities, team structure, and qualifications..."
+                    placeholderTextColor="#64748B"
+                    value={jobDesc}
+                    onChangeText={setJobDesc}
+                    multiline
+                    editable={true}
+                  />
+
+                  <TouchableOpacity
+                    style={styles.dismissKeypadBtn}
+                    onPress={Keyboard.dismiss}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="chevron-down-circle-outline" size={16} color="#94A3B8" />
+                    <Text style={styles.dismissKeypadText}>Dismiss Keyboard</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={styles.modalSubmitBtn}
+                  onPress={handleCreateJob}
+                  disabled={submittingJob}
+                >
+                  {submittingJob ? (
+                    <ActivityIndicator color="#070C12" />
+                  ) : (
+                    <Text style={styles.modalSubmitBtnText}>Publish Opening to Candidates</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
         </Modal>
 
         {/* ========================================================
@@ -1040,110 +1280,119 @@ export default function CompanyDashboardScreen() {
         ======================================================== */}
         <Modal
           visible={editProfileModalVisible}
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           onRequestClose={() => setEditProfileModalVisible(false)}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={{ width: '100%', maxWidth: 540 }}
-              >
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Edit Company Profile</Text>
-                    <TouchableOpacity onPress={() => setEditProfileModalVisible(false)}>
-                      <Ionicons name="close" size={24} color="#94A3B8" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView
-                    style={{ maxHeight: 420 }}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                  >
-                    <Text style={styles.inputLabel}>Company Name *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={editName}
-                      onChangeText={setEditName}
-                      placeholder="Company Legal Name"
-                      placeholderTextColor="#64748B"
-                    />
-
-                    <Text style={styles.inputLabel}>Industry</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={editIndustry}
-                      onChangeText={setEditIndustry}
-                      placeholder="e.g. Fintech, Cloud, AI"
-                      placeholderTextColor="#64748B"
-                    />
-
-                    <Text style={styles.inputLabel}>Location / Headquarters</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={editLocation}
-                      onChangeText={setEditLocation}
-                      placeholder="Colombo 04, Sri Lanka"
-                      placeholderTextColor="#64748B"
-                    />
-
-                    <Text style={styles.inputLabel}>Website URL</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={editWebsite}
-                      onChangeText={setEditWebsite}
-                      placeholder="https://company.com"
-                      placeholderTextColor="#64748B"
-                      autoCapitalize="none"
-                    />
-
-                    <Text style={styles.inputLabel}>Company Size</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={editSize}
-                      onChangeText={setEditSize}
-                      placeholder="e.g. 50-200"
-                      placeholderTextColor="#64748B"
-                    />
-
-                    <Text style={styles.inputLabel}>Company Description / Mission</Text>
-                    <TextInput
-                      style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
-                      value={editDesc}
-                      onChangeText={setEditDesc}
-                      placeholder="Brief overview of your company..."
-                      placeholderTextColor="#64748B"
-                      multiline
-                    />
-
-                    <TouchableOpacity
-                      style={styles.dismissKeypadBtn}
-                      onPress={Keyboard.dismiss}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="chevron-down-circle-outline" size={16} color="#94A3B8" />
-                      <Text style={styles.dismissKeypadText}>Dismiss Keyboard</Text>
-                    </TouchableOpacity>
-                  </ScrollView>
-
-                  <TouchableOpacity
-                    style={styles.modalSubmitBtn}
-                    onPress={handleSaveProfile}
-                    disabled={savingProfile}
-                  >
-                    {savingProfile ? (
-                      <ActivityIndicator color="#070C12" />
-                    ) : (
-                      <Text style={styles.modalSubmitBtnText}>Save Profile Changes</Text>
-                    )}
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setEditProfileModalVisible(false)}
+            />
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ width: '100%', maxWidth: 540, zIndex: 10 }}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Edit Company Profile</Text>
+                  <TouchableOpacity onPress={() => setEditProfileModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#94A3B8" />
                   </TouchableOpacity>
                 </View>
-              </KeyboardAvoidingView>
-            </View>
-          </TouchableWithoutFeedback>
+
+                <ScrollView
+                  style={{ maxHeight: 420 }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.inputLabel}>Company Name *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="Company Legal Name"
+                    placeholderTextColor="#64748B"
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Industry</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editIndustry}
+                    onChangeText={setEditIndustry}
+                    placeholder="e.g. Fintech, Cloud, AI"
+                    placeholderTextColor="#64748B"
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Location / Headquarters</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editLocation}
+                    onChangeText={setEditLocation}
+                    placeholder="Colombo 04, Sri Lanka"
+                    placeholderTextColor="#64748B"
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Website URL</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editWebsite}
+                    onChangeText={setEditWebsite}
+                    placeholder="https://company.com"
+                    placeholderTextColor="#64748B"
+                    autoCapitalize="none"
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Company Size</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editSize}
+                    onChangeText={setEditSize}
+                    placeholder="e.g. 50-200"
+                    placeholderTextColor="#64748B"
+                    editable={true}
+                  />
+
+                  <Text style={styles.inputLabel}>Company Description / Mission</Text>
+                  <TextInput
+                    style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
+                    value={editDesc}
+                    onChangeText={setEditDesc}
+                    placeholder="Brief overview of your company..."
+                    placeholderTextColor="#64748B"
+                    multiline
+                    editable={true}
+                  />
+
+                  <TouchableOpacity
+                    style={styles.dismissKeypadBtn}
+                    onPress={Keyboard.dismiss}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="chevron-down-circle-outline" size={16} color="#94A3B8" />
+                    <Text style={styles.dismissKeypadText}>Dismiss Keyboard</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={styles.modalSubmitBtn}
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator color="#070C12" />
+                  ) : (
+                    <Text style={styles.modalSubmitBtnText}>Save Profile Changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
         </Modal>
 
         {/* ========================================================
@@ -1151,12 +1400,17 @@ export default function CompanyDashboardScreen() {
         ======================================================== */}
         <Modal
           visible={Boolean(selectedJobDetail)}
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           onRequestClose={() => setSelectedJobDetail(null)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setSelectedJobDetail(null)}
+            />
+            <View style={[styles.modalContent, { zIndex: 10 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Job Details & Applications</Text>
                 <TouchableOpacity onPress={() => setSelectedJobDetail(null)}>
@@ -1256,12 +1510,17 @@ export default function CompanyDashboardScreen() {
         ======================================================== */}
         <Modal
           visible={Boolean(selectedApp)}
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           onRequestClose={() => setSelectedApp(null)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setSelectedApp(null)}
+            />
+            <View style={[styles.modalContent, { zIndex: 10 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Application Details</Text>
                 <TouchableOpacity onPress={() => setSelectedApp(null)}>
@@ -1304,14 +1563,7 @@ export default function CompanyDashboardScreen() {
                   {selectedApp.resumeUrl && (
                     <TouchableOpacity
                       style={styles.downloadCvBtn}
-                      onPress={() => {
-                        const fullUrl = selectedApp.resumeUrl.startsWith('http')
-                          ? selectedApp.resumeUrl
-                          : `${API_BASE_URL.replace('/api', '')}${selectedApp.resumeUrl}`;
-                        Linking.openURL(fullUrl).catch(() =>
-                          Alert.alert('CV Link', `Candidate attached CV: ${selectedApp.resumeUrl}`)
-                        );
-                      }}
+                      onPress={() => handleOpenCv(selectedApp.resumeUrl)}
                       activeOpacity={0.8}
                     >
                       <Ionicons name="document-attach" size={18} color="#070C12" />
@@ -1338,7 +1590,214 @@ export default function CompanyDashboardScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* ========================================================
+            MODAL: LOGO PICKER MODAL (Universal Web & Mobile)
+        ======================================================== */}
+        <Modal
+          visible={logoModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setLogoModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setLogoModalVisible(false)}
+            />
+            <View style={[styles.logoModalCard, { zIndex: 10 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Company Logo & Branding</Text>
+                <TouchableOpacity onPress={() => setLogoModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ color: '#94A3B8', fontSize: 12, marginBottom: 16 }}>
+                Upload your official company brand badge or select from enterprise presets:
+              </Text>
+
+              {/* Action 1: Upload from Device / Computer */}
+              <TouchableOpacity
+                style={styles.logoActionBtn}
+                onPress={handlePickLogoFromDevice}
+                activeOpacity={0.8}
+              >
+                <View style={styles.logoActionIcon}>
+                  <Ionicons name="folder-open-outline" size={20} color="#38BDF8" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.logoActionTitle}>Choose from Device / Computer</Text>
+                  <Text style={styles.logoActionSub}>Select a PNG, JPG, or WEBP logo file</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Action 2: Camera Capture */}
+              <TouchableOpacity
+                style={styles.logoActionBtn}
+                onPress={handleCaptureLogoCamera}
+                activeOpacity={0.8}
+              >
+                <View style={styles.logoActionIcon}>
+                  <Ionicons name="camera-outline" size={20} color="#00F5D4" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.logoActionTitle}>Capture via Camera</Text>
+                  <Text style={styles.logoActionSub}>Take a quick photo of your company logo</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Preset Enterprise Logos */}
+              <Text style={styles.presetHeading}>OR SELECT AN ENTERPRISE BADGE</Text>
+              <View style={styles.presetsRow}>
+                {PRESET_COMPANY_LOGOS.map((preset, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.presetChip}
+                    onPress={() => handleSelectPresetLogo(preset)}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: preset }} style={styles.presetImage} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Action 3: Enter URL */}
+              <Text style={styles.presetHeading}>OR PASTE PUBLIC LOGO URL</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1, marginTop: 0 }]}
+                  placeholder="https://company.com/logo.png"
+                  placeholderTextColor="#64748B"
+                  value={customLogoUrl}
+                  onChangeText={setCustomLogoUrl}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={[styles.modalSubmitBtn, { marginTop: 0, paddingHorizontal: 16 }]}
+                  onPress={handleApplyCustomUrlLogo}
+                >
+                  <Text style={styles.modalSubmitBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action 4: Remove Logo */}
+              {company?.logoUrl && (
+                <TouchableOpacity
+                  style={styles.removeLogoBtn}
+                  onPress={handleRemoveLogo}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                  <Text style={styles.removeLogoText}>Remove Current Logo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </Modal>
+
       </ResponsiveContainer>
+
+      {/* ========================================================
+          RECRUITER BOTTOM TAB BAR (Viewport Fixed)
+      ======================================================== */}
+      <View style={styles.bottomNavbarFixedWrapper}>
+        <View
+          style={[
+            styles.bottomTabBar,
+            isLargeScreen && styles.bottomTabBarFloating,
+            { paddingBottom: Math.max(insets.bottom, 10) },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.bottomTabItem}
+            onPress={() => setActiveTab('jobs')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={activeTab === 'jobs' ? 'briefcase' : 'briefcase-outline'}
+              size={20}
+              color={activeTab === 'jobs' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.bottomTabLabel, activeTab === 'jobs' && styles.bottomTabLabelActive]}>
+              Jobs
+            </Text>
+            {activeTab === 'jobs' && <View style={styles.bottomActiveDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomTabItem}
+            onPress={() => setActiveTab('applications')}
+            activeOpacity={0.7}
+          >
+            <View style={{ position: 'relative' }}>
+              <Ionicons
+                name={activeTab === 'applications' ? 'file-tray-full' : 'file-tray-full-outline'}
+                size={20}
+                color={activeTab === 'applications' ? '#38BDF8' : '#64748B'}
+              />
+              {applications.length > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>{applications.length}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.bottomTabLabel, activeTab === 'applications' && styles.bottomTabLabelActive]}>
+              Applications
+            </Text>
+            {activeTab === 'applications' && <View style={styles.bottomActiveDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomTabItem}
+            onPress={() => setActiveTab('talent')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={activeTab === 'talent' ? 'people' : 'people-outline'}
+              size={20}
+              color={activeTab === 'talent' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.bottomTabLabel, activeTab === 'talent' && styles.bottomTabLabelActive]}>
+              Talent
+            </Text>
+            {activeTab === 'talent' && <View style={styles.bottomActiveDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomTabItem}
+            onPress={() => setActiveTab('verify')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={activeTab === 'verify' ? 'shield-checkmark' : 'shield-checkmark-outline'}
+              size={20}
+              color={activeTab === 'verify' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.bottomTabLabel, activeTab === 'verify' && styles.bottomTabLabelActive]}>
+              Verify ID
+            </Text>
+            {activeTab === 'verify' && <View style={styles.bottomActiveDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomTabItem}
+            onPress={() => setActiveTab('profile')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={activeTab === 'profile' ? 'business' : 'business-outline'}
+              size={20}
+              color={activeTab === 'profile' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.bottomTabLabel, activeTab === 'profile' && styles.bottomTabLabelActive]}>
+              Profile
+            </Text>
+            {activeTab === 'profile' && <View style={styles.bottomActiveDot} />}
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1347,6 +1806,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#070C12',
+    ...(Platform.OS === 'web' ? { minHeight: '100vh' as any } : {}),
   },
   center: {
     alignItems: 'center',
@@ -1361,6 +1821,55 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1E293B',
     gap: 8,
+  },
+  topBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexShrink: 1,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  desktopNavbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0B1321',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  desktopNavLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  desktopNavLinkActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  desktopNavText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  desktopNavTextActive: {
+    color: '#38BDF8',
+    fontWeight: '800',
   },
   companyHeaderLeft: {
     flex: 1,
@@ -1465,7 +1974,7 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: 120,
   },
   sectionHeaderRow: {
     marginBottom: Spacing.md,
@@ -2019,6 +2528,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {}),
   },
   dismissKeypadBtn: {
     flexDirection: 'row',
@@ -2064,5 +2574,186 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
+  },
+
+  // Recruiter Bottom Tab Bar
+  bottomNavbarFixedWrapper: {
+    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 99999,
+    alignItems: 'center',
+    ...(Platform.OS === 'web' ? { pointerEvents: 'box-none' as any } : {}),
+  },
+  bottomTabBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(10, 16, 29, 0.96)',
+    borderTopWidth: 1,
+    borderTopColor: '#1A2637',
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    width: '100%',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(16px)', pointerEvents: 'auto' as any } : {}),
+  },
+  bottomTabBarFloating: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    borderRadius: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#26354D',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  bottomTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    position: 'relative',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  bottomTabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 3,
+  },
+  bottomTabLabelActive: {
+    color: '#38BDF8',
+    fontWeight: '800',
+  },
+  bottomActiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#38BDF8',
+    marginTop: 2,
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#38BDF8',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  tabBadgeText: {
+    color: '#070C12',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  // Contact Candidate Button
+  contactTalentBtn: {
+    backgroundColor: '#38BDF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 8,
+    marginTop: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  contactTalentBtnText: {
+    color: '#070C12',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // Logo Picker Modal
+  logoModalCard: {
+    backgroundColor: '#0E1724',
+    borderRadius: 18,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 480,
+    borderWidth: 1,
+    borderColor: '#1E2E44',
+  },
+  logoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#131F33',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#1F314D',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  logoActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoActionTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  logoActionSub: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  presetHeading: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+  },
+  presetChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#1E2E44',
+    overflow: 'hidden',
+    backgroundColor: '#131F33',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  presetImage: {
+    width: '100%',
+    height: '100%',
+  },
+  removeLogoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  removeLogoText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

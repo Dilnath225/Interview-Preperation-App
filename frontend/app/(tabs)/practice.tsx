@@ -137,7 +137,7 @@ export default function PracticeScreen() {
   const soundRef = useRef<any>(null);
   const recordingTimerRef = useRef<any>(null);
   const typewriterTimerRef = useRef<any>(null);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
 
   const selectedPrompt = PRACTICE_PROMPTS[selectedPromptIndex];
 

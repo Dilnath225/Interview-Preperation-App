@@ -58,6 +58,23 @@ export class CompanyController {
   };
 
   /**
+   * Upload company logo file
+   */
+  static uploadLogo = async (req: Request, res: Response) => {
+    const companyId = (req as any).company?.id;
+    if (!companyId) {
+      throw ApiError.unauthorized('Company authentication required.');
+    }
+    if (!req.file) {
+      throw ApiError.badRequest('No image file uploaded.');
+    }
+
+    const logoUrl = `/uploads/avatars/${req.file.filename}`;
+    const result = await CompanyService.updateProfile(companyId, { logoUrl });
+    return sendResponse(res, 200, { logoUrl: result.company.logoUrl, company: result.company }, 'Company logo updated successfully.');
+  };
+
+  /**
    * Browse talent pool with filters (targetRole, minScore, experienceLevel)
    */
   static browseTalent = async (req: Request, res: Response) => {

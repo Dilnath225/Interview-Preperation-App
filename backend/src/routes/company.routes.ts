@@ -3,6 +3,7 @@ import { CompanyController } from '../controllers/company.controller';
 import { JobController } from '../controllers/job.controller';
 import { asyncHandler } from '../middlewares/asyncHandler';
 import { authenticateCompany } from '../middlewares/companyAuth.middleware';
+import { uploadAvatar } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -13,9 +14,10 @@ router.post('/auth/login', asyncHandler(CompanyController.login));
 // Company-protected endpoints
 router.use(authenticateCompany);
 
-// Profile
+// Profile & Logo
 router.get('/profile', asyncHandler(CompanyController.getProfile));
 router.put('/profile', asyncHandler(CompanyController.updateProfile));
+router.post('/logo', uploadAvatar.single('logo'), asyncHandler(CompanyController.uploadLogo));
 
 // Talent Pool
 router.get('/talent', asyncHandler(CompanyController.browseTalent));
