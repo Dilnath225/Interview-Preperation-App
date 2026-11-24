@@ -1,0 +1,69 @@
+name: Build iOS IPA for Sideloadly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build Unsigned iOS IPA
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Expo Prebuild (Generate Native iOS Project)
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
+      - name: Build Xcode Archive (Unsigned)
+        run: |
+          cd ios
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import sys, json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
+
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "../build/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package Payload into IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r build/App.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r AI-Mentor.ipa Payload/
+          echo "IPA packaged successfully:"
+          ls -lh AI-Mentor.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Mentor-iOS-IPA
+          path: frontend/build/AI-Mentor.ipa
+          retention-days: 7
