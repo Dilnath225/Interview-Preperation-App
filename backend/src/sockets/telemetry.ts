@@ -52,6 +52,23 @@ interface SocketUser {
 // ── Online users tracker ──
 const onlineUsers = new Map<string, { socketId: string; user: SocketUser; activity: string }>();
 
+let telemetryIo: Server | null = null;
+
+export function broadcastLiveTelemetryPing(data: {
+  userId: string;
+  name: string;
+  email: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  activityContext?: string;
+  timestamp: number;
+}) {
+  if (telemetryIo) {
+    telemetryIo.to(ADMIN_ROOM).emit('telemetry:live_ping', data);
+  }
+}
+
 export function initTelemetrySocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -62,6 +79,8 @@ export function initTelemetrySocket(httpServer: HttpServer): Server {
     pingInterval: 25_000,
     pingTimeout: 20_000,
   });
+
+  telemetryIo = io;
 
   // ─────────────────────────────────────────────────────
   // JWT Handshake Authentication

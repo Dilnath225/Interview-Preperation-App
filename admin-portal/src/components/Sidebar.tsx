@@ -120,15 +120,25 @@ function UserRow({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-white truncate">{user.name}</p>
+        <p className="text-xs font-semibold text-white truncate flex items-center gap-1">
+          <span>{user.name}</span>
+          {user.latitude != null && (
+            <span className="text-[11px] text-cyan-400" title="Live GPS coordinates active">📍</span>
+          )}
+        </p>
         <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
       </div>
-      <span
-        className="text-[9px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap"
-        style={{ backgroundColor: cfg.color + '20', color: cfg.color }}
-      >
-        {cfg.label}
-      </span>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <span
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap"
+          style={{ backgroundColor: cfg.color + '20', color: cfg.color }}
+        >
+          {cfg.label}
+        </span>
+        <span className={`text-[8px] font-medium ${user.latitude != null ? 'text-emerald-400' : 'text-slate-500'}`}>
+          {user.latitude != null ? 'GPS Active' : 'No GPS'}
+        </span>
+      </div>
     </button>
   );
 }

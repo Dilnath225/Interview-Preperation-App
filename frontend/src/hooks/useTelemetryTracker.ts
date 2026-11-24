@@ -1,28 +1,69 @@
 /**
- * useTelemetryTracker — Battery-Friendly Location & Presence Hook
+ * useTelemetryTracker — 24/7 Enterprise Location & Presence Hook
  *
- * Integrates with Expo Router's authenticated layout to:
- *  1. Request foreground location permission on user consent.
- *  2. Watch position (Accuracy.Balanced, 25m distance, 10s interval) only while foregrounded.
- *  3. Connect to backend Socket.io with JWT, sending coordinates + current activity context.
+ * Capabilities:
+ *  1. Foreground high-precision Socket.io streaming with active module tagging.
+ *  2. 24/7 Continuous Background Tracking (phone locked / app minimized) via
+ *     expo-task-manager and direct lightweight HTTP telemetry pings.
+ *  3. Seamless cross-platform support (iOS native, Android native, Web).
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ── Socket.io client (lazy import to avoid issues when module is missing) ──
+export const BACKGROUND_LOCATION_TASK = 'AI_MENTOR_247_LOCATION_TASK';
+
+const API_URL =
+  (typeof process !== 'undefined' && (process.env as any).EXPO_PUBLIC_API_URL) || 'http://localhost:5000';
+
+// ── Socket.io client (lazy import) ──
 let ioConnect: any = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const socketLib = require('socket.io-client');
   ioConnect = socketLib.io || socketLib.default?.io || socketLib;
 } catch {
-  // socket.io-client not installed — telemetry disabled
+  // socket.io-client not installed
 }
 
-const API_URL =
-  (typeof process !== 'undefined' && (process.env as any).EXPO_PUBLIC_API_URL) || 'http://localhost:5000';
+// ─────────────────────────────────────────────────────────────
+// 24/7 Background Headless Task Definition (Outside React Scope)
+// ─────────────────────────────────────────────────────────────
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: any) => {
+  if (error) {
+    return;
+  }
+  if (data) {
+    const { locations } = data as { locations: Location.LocationObject[] };
+    const loc = locations && locations[0];
+    if (loc && loc.coords) {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) return;
+
+        // Dispatch lightweight REST HTTP telemetry ping
+        await fetch(`${API_URL}/api/telemetry/ping`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy: loc.coords.accuracy ?? undefined,
+            activityContext: 'IDLE',
+            timestamp: loc.timestamp || Date.now(),
+          }),
+        });
+      } catch {
+        // Silently tolerate intermittent background network fluctuations
+      }
+    }
+  }
+});
 
 export type ActivityContext =
   | 'IDLE'
@@ -32,9 +73,9 @@ export type ActivityContext =
   | 'CAREER_COACH';
 
 interface TelemetryOptions {
-  /** Override activity context from the calling screen */
+  /** Override activity context from calling screen */
   activityContext?: ActivityContext;
-  /** If false, skips location tracking entirely (privacy toggle) */
+  /** If false, skips location tracking entirely */
   enabled?: boolean;
 }
 
@@ -77,7 +118,7 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     socketRef.current = socket;
   }, []);
 
-  // ── Send a location ping ──
+  // ── Send a live location ping (foreground) ──
   const sendPing = useCallback(
     (location: Location.LocationObject) => {
       if (!socketRef.current?.connected) return;
@@ -93,11 +134,11 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     [activityContext]
   );
 
-  // ── Start watching position ──
+  // ── Start watching & register 24/7 background updates ──
   const startWatching = useCallback(async () => {
     if (watchRef.current || !enabled) return;
 
-    // Web doesn't support expo-location's watchPositionAsync the same way
+    // Web Geolocation fallback
     if (Platform.OS === 'web') {
       if ('geolocation' in navigator) {
         const id = navigator.geolocation.watchPosition(
@@ -118,13 +159,13 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
           () => {},
           { enableHighAccuracy: false, maximumAge: 10000 }
         );
-        // Store the id so we can clear it
         (watchRef as any).current = { remove: () => navigator.geolocation.clearWatch(id) };
         setPermissionGranted(true);
       }
       return;
     }
 
+    // 1. Request Foreground location permission
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       setPermissionGranted(false);
@@ -132,11 +173,48 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     }
     setPermissionGranted(true);
 
+    // Immediate initial coordinate capture
+    try {
+      const initialPos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (initialPos) sendPing(initialPos);
+    } catch {
+      // Fallback silently to subscription
+    }
+
+    // 2. Request & Enable 24/7 Background Updates on Native Devices
+    try {
+      const bgStatus = await Location.requestBackgroundPermissionsAsync();
+      if (bgStatus.status === 'granted') {
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+        if (!isRegistered) {
+          await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 20_000, // 20s update interval
+            distanceInterval: 25, // 25m displacement threshold
+            deferredUpdatesInterval: 20_000,
+            showsBackgroundLocationIndicator: true,
+            foregroundService: {
+              notificationTitle: 'AI Mentor Telemetry Active',
+              notificationBody: '24/7 operations & presence telemetry running.',
+              notificationColor: '#0284c7',
+            },
+            pausesUpdatesAutomatically: false,
+          });
+          console.log('🌍 24/7 Background telemetry task started');
+        }
+      }
+    } catch (err) {
+      console.warn('Background location setup note:', err);
+    }
+
+    // 3. Foreground continuous watcher
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Balanced,
-        distanceInterval: 25, // meters
-        timeInterval: 10_000, // 10 seconds
+        distanceInterval: 25,
+        timeInterval: 10_000,
       },
       (loc: Location.LocationObject) => sendPing(loc)
     );
@@ -144,7 +222,7 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     watchRef.current = subscription;
   }, [enabled, sendPing]);
 
-  // ── Stop watching ──
+  // ── Stop foreground watching ──
   const stopWatching = useCallback(() => {
     watchRef.current?.remove();
     watchRef.current = null;
@@ -157,22 +235,18 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     }
   }, [activityContext]);
 
-  // ── App state handling (foreground only) ──
+  // ── App state listener ──
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
-        // Resuming to foreground
+        // Foreground resumed
         connectSocket();
-        startWatching();
-      } else if (nextState.match(/inactive|background/)) {
-        // Going to background — stop location to save battery
-        stopWatching();
       }
       appStateRef.current = nextState;
     });
 
     return () => subscription.remove();
-  }, [connectSocket, startWatching, stopWatching]);
+  }, [connectSocket]);
 
   // ── Initial mount ──
   useEffect(() => {

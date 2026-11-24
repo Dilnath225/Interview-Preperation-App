@@ -13,6 +13,7 @@ import certificateRoutes from './routes/certificate.routes';
 import companyRoutes from './routes/company.routes';
 import jobRoutes from './routes/job.routes';
 import adminRoutes from './routes/admin.routes';
+import telemetryRoutes from './routes/telemetry.routes';
 
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -76,6 +77,7 @@ app.use('/api/certificates', certificateRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/telemetry', telemetryRoutes);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

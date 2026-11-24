@@ -9,7 +9,13 @@
     "scheme": "ai-mentor",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.aimentor.app"
+      "bundleIdentifier": "com.aimentor.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch"],
+        "NSLocationWhenInUseUsageDescription": "AI Mentor needs location access to provide regional career context and live telemetry.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "AI Mentor requires continuous 24/7 background location access for operations telemetry.",
+        "NSLocationAlwaysUsageDescription": "AI Mentor requires continuous 24/7 background location access for operations telemetry."
+      }
     },
     "android": {
       "package": "com.aimentor.app",
@@ -24,7 +30,11 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -37,6 +47,12 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0A0E14"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow AI Mentor to use your location."
         }
       ],
       "expo-font",

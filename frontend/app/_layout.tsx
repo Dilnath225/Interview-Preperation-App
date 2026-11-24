@@ -6,11 +6,30 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/constants/theme';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context';
+import { useTelemetryTracker, ActivityContext } from '../src/hooks/useTelemetryTracker';
 
 function InitialLayout() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Active module telemetry context tracking
+  const currentSegment = (segments && segments[0]) ? String(segments[0]) : '';
+  const activityContext: ActivityContext =
+    currentSegment === 'mock-interview'
+      ? 'MOCK_INTERVIEW'
+      : currentSegment === 'coding-challenge'
+      ? 'CODING_SANDBOX'
+      : currentSegment === 'resume-review'
+      ? 'ATS_SCANNER'
+      : currentSegment === '(tabs)'
+      ? 'CAREER_COACH'
+      : 'IDLE';
+
+  useTelemetryTracker({
+    enabled: isAuthenticated,
+    activityContext,
+  });
 
   useEffect(() => {
     if (isLoading) return;

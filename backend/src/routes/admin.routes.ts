@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { ENV } from '../config/env';
 import { prisma } from '../config/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth.middleware';
+import { broadcastLiveTelemetryPing } from '../sockets/telemetry';
 
 const router = Router();
 
@@ -135,5 +136,74 @@ router.get('/stats', authenticate, superAdminGuard as any, async (req: AuthReque
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// ── Simulate / inject live location ping for a user (for verification & testing) ──
+router.post(
+  '/users/:userId/simulate-location',
+  authenticate,
+  superAdminGuard as any,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.params.userId as string;
+      const {
+        latitude = 6.9271 + (Math.random() - 0.5) * 0.05,
+        longitude = 79.8612 + (Math.random() - 0.5) * 0.05,
+        city = 'Colombo',
+        country = 'Sri Lanka',
+        activityContext = 'MOCK_INTERVIEW',
+      } = req.body || {};
+
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          lastLat: latitude,
+          lastLng: longitude,
+          lastCity: city,
+          lastCountry: country,
+          isOnline: true,
+          lastSeenAt: new Date(),
+        },
+      });
+
+      const log = await prisma.userLocationLog.create({
+        data: {
+          userId,
+          latitude,
+          longitude,
+          accuracy: 12,
+          activityContext,
+        },
+      });
+
+      broadcastLiveTelemetryPing({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        latitude,
+        longitude,
+        accuracy: 12,
+        activityContext,
+        timestamp: Date.now(),
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          latitude,
+          longitude,
+          activityContext,
+          city,
+          country,
+          logId: log.id,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
 
 export default router;
