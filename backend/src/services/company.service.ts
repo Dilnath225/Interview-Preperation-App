@@ -152,6 +152,133 @@ export class CompanyService {
   }
 
   /**
+   * Seeds realistic enterprise demo jobs and candidate applications for a company
+   */
+  static async seedDemoWorkspace(companyId: string) {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        jobPostings: {
+          include: { applications: true },
+        },
+      },
+    });
+
+    if (!company) {
+      throw ApiError.notFound('Company not found.');
+    }
+
+    const demoJobs = [
+      {
+        title: 'Senior Full Stack & AI Solutions Engineer',
+        targetRole: 'Full Stack Engineer',
+        location: 'Hybrid / Colombo & Remote',
+        salaryRange: '$3,500 - $6,500 / month',
+        type: 'FULL_TIME',
+        experience: 'Senior',
+        requirements: JSON.stringify(['React Native', 'TypeScript', 'Node.js', 'PostgreSQL', 'Cloud Run', 'OpenAI API']),
+        description:
+          'Join our high-velocity enterprise engineering squad building next-generation AI workflows, real-time telemetry systems, and cross-platform mobile client experiences with zero-latency synchronization.',
+      },
+      {
+        title: 'Lead Mobile Architect (React Native & iOS)',
+        targetRole: 'Mobile Architect',
+        location: 'Colombo / Remote',
+        salaryRange: '$4,000 - $7,500 / month',
+        type: 'FULL_TIME',
+        experience: 'Lead',
+        requirements: JSON.stringify(['React Native', 'Expo SDK 54+', 'iOS Swift', 'Background Telemetry', 'WebSocket', 'State Machines']),
+        description:
+          'Architect our mission-critical enterprise mobile client. Spearhead low-latency WebSocket telemetry, real-time background location services, offline synchronization, and native iOS optimization.',
+      },
+      {
+        title: 'DevOps & Cloud Infrastructure Engineer',
+        targetRole: 'Cloud & DevOps Engineer',
+        location: 'Remote / Flexible',
+        salaryRange: '$3,200 - $5,800 / month',
+        type: 'FULL_TIME',
+        experience: 'Senior',
+        requirements: JSON.stringify(['Kubernetes', 'Docker', 'Google Cloud Run', 'GitHub Actions', 'Terraform', 'PostgreSQL']),
+        description:
+          'Scale our cloud microservices fleet with 99.99% uptime, automated GitHub Actions pipelines, Zero-Trust network policies, and real-time observability telemetry.',
+      },
+    ];
+
+    // Create any missing demo jobs
+    for (const dJob of demoJobs) {
+      const exists = company.jobPostings.some((j) => j.title.toLowerCase() === dJob.title.toLowerCase());
+      if (!exists) {
+        await prisma.jobPosting.create({
+          data: {
+            companyId,
+            ...dJob,
+            status: 'ACTIVE',
+          },
+        });
+      }
+    }
+
+    // Refresh jobs list
+    const currentJobs = await prisma.jobPosting.findMany({
+      where: { companyId },
+    });
+
+    // Find available candidates or fallback to first registered user
+    const users = await prisma.user.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (users.length > 0 && currentJobs.length > 0) {
+      const targetJob = currentJobs[0];
+      const existingApps = await prisma.jobApplication.findMany({
+        where: { jobId: targetJob.id },
+      });
+
+      if (existingApps.length === 0) {
+        const primaryUser = users[0];
+        const secondaryUser = users.length > 1 ? users[1] : users[0];
+
+        await prisma.jobApplication.createMany({
+          data: [
+            {
+              jobId: targetJob.id,
+              userId: primaryUser.id,
+              fullName: primaryUser.name || 'Dilnath Rathnayaka',
+              email: primaryUser.email,
+              phone: '+94 77 123 4567',
+              readinessScore: 96,
+              hasCertificate: true,
+              status: 'SHORTLISTED',
+              coverLetter:
+                'Experienced Full Stack & Mobile Engineer with 5+ years building scalable distributed microservices, React Native apps, and production LLM integrations. Excited to contribute to high-impact technical initiatives.',
+              resumeUrl: 'https://raw.githubusercontent.com/Dilnath225/Interview-Preperation-App/main/docs/Dilnath_Senior_Engineer_CV.pdf',
+            },
+            {
+              jobId: targetJob.id,
+              userId: secondaryUser.id,
+              fullName: secondaryUser.name || 'Shanu Fernando',
+              email: secondaryUser.email,
+              phone: '+94 71 987 6543',
+              readinessScore: 89,
+              hasCertificate: true,
+              status: 'REVIEWING',
+              coverLetter:
+                'Specialized in React Native mobile architecture, cross-platform state machines, performance profiling, and CI/CD automation.',
+              resumeUrl: 'https://raw.githubusercontent.com/Dilnath225/Interview-Preperation-App/main/docs/Shanu_Mobile_Architect_CV.pdf',
+            },
+          ],
+        });
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Enterprise demo workspace populated successfully with jobs and candidate applications.',
+    };
+  }
+
+  /**
    * Sanitizes company object by stripping sensitive fields
    */
   static sanitizeCompany(company: any) {

@@ -14,6 +14,9 @@ router.post('/auth/login', asyncHandler(CompanyController.login));
 // Company-protected endpoints
 router.use(authenticateCompany);
 
+// Enterprise Demo Workspace Seeder
+router.post('/seed-demo', asyncHandler(CompanyController.seedDemoWorkspace));
+
 // Profile & Logo
 router.get('/profile', asyncHandler(CompanyController.getProfile));
 router.put('/profile', asyncHandler(CompanyController.updateProfile));

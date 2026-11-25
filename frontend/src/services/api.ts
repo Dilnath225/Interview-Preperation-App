@@ -722,6 +722,10 @@ class ApiClient {
     return this.request<any>('get', `/company/verify/${credentialId}`);
   }
 
+  async seedCompanyDemoWorkspace() {
+    return this.request<any>('post', '/company/seed-demo');
+  }
+
   // --- Company Job Management ---
   async getCompanyJobs() {
     return this.request<any>('get', '/company/jobs');

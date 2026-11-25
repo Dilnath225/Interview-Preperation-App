@@ -115,4 +115,17 @@ export class CompanyController {
     const result = await TalentService.verifyCandidateCredential(credentialId);
     return sendResponse(res, 200, { credential: result, verified: true }, 'Credential verified successfully.');
   };
+
+  /**
+   * Seed demo workspace jobs and candidate applications for the company
+   */
+  static seedDemoWorkspace = async (req: Request, res: Response) => {
+    const companyId = (req as any).company?.id;
+    if (!companyId) {
+      throw ApiError.unauthorized('Company authentication required.');
+    }
+
+    const result = await CompanyService.seedDemoWorkspace(companyId);
+    return sendResponse(res, 200, result, 'Demo workspace initialized successfully.');
+  };
 }

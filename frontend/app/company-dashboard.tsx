@@ -54,6 +54,17 @@ export default function CompanyDashboardScreen() {
   const [talentPool, setTalentPool] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({ totalJobs: 0, activeJobs: 0 });
 
+  // Demo Seeding State
+  const [seedingDemo, setSeedingDemo] = useState(false);
+
+  // Application Filters & Search
+  const [appSearchQuery, setAppSearchQuery] = useState('');
+  const [appStatusFilter, setAppStatusFilter] = useState<'ALL' | 'PENDING' | 'REVIEWING' | 'SHORTLISTED' | 'INTERVIEWING' | 'REJECTED'>('ALL');
+
+  // Talent Pool Filters & Search
+  const [talentSearchQuery, setTalentSearchQuery] = useState('');
+  const [talentRoleFilter, setTalentRoleFilter] = useState<string>('ALL');
+
   // Job Details Inspection Modal
   const [selectedJobDetail, setSelectedJobDetail] = useState<any>(null);
 
@@ -91,6 +102,50 @@ export default function CompanyDashboardScreen() {
 
   // Application Detail Modal
   const [selectedApp, setSelectedApp] = useState<any>(null);
+
+  // Fast-Track Job Templates
+  const JOB_TEMPLATES = [
+    {
+      title: 'Senior Full Stack & AI Solutions Engineer',
+      targetRole: 'Full Stack Engineer',
+      location: 'Hybrid / Colombo & Remote',
+      salaryRange: '$3,500 - $6,500 / month',
+      type: 'FULL_TIME',
+      experience: 'Senior',
+      requirements: 'React Native, TypeScript, Node.js, PostgreSQL, Cloud Run, OpenAI API',
+      description:
+        'Join our high-velocity enterprise engineering squad building next-generation AI workflows, real-time telemetry systems, and cross-platform mobile client experiences with zero-latency synchronization.',
+    },
+    {
+      title: 'Lead Mobile Architect (React Native & iOS)',
+      targetRole: 'Mobile Architect',
+      location: 'Colombo / Remote',
+      salaryRange: '$4,000 - $7,500 / month',
+      type: 'FULL_TIME',
+      experience: 'Lead',
+      requirements: 'React Native, Expo SDK, iOS Swift, Background Telemetry, WebSocket, State Machines',
+      description:
+        'Architect our mission-critical enterprise mobile client. Spearhead low-latency WebSocket telemetry, real-time background location services, offline synchronization, and native iOS optimization.',
+    },
+    {
+      title: 'DevOps & Cloud Infrastructure Engineer',
+      targetRole: 'Cloud & DevOps Engineer',
+      location: 'Remote / Flexible',
+      salaryRange: '$3,200 - $5,800 / month',
+      type: 'FULL_TIME',
+      experience: 'Senior',
+      requirements: 'Kubernetes, Docker, Google Cloud Run, GitHub Actions, Terraform, PostgreSQL',
+      description:
+        'Scale our cloud microservices fleet with 99.99% uptime, automated GitHub Actions pipelines, Zero-Trust network policies, and real-time observability telemetry.',
+    },
+  ];
+
+  // Demo Verified Credentials for Instant 1-Tap Verification
+  const DEMO_CREDENTIALS = [
+    { id: 'AIM-CERT-2026-545792', name: 'Dilnath Rathnayaka', role: 'Full Stack AI' },
+    { id: 'AIM-CERT-2026-731074', name: 'Shanu Fernando', role: 'Mobile Architect' },
+    { id: 'AIM-CERT-2026-274227', name: 'Nilmini Sureka', role: 'DevOps Cloud SRE' },
+  ];
 
   // Hardware Back Button Interceptor - Prevents accidental sign-out
   useEffect(() => {
@@ -153,14 +208,75 @@ export default function CompanyDashboardScreen() {
       }
 
       setCompany(profileRes.data?.company || profileRes.data);
-      setJobs(jobsRes?.data?.jobs || []);
-      setApplications(appsRes?.data?.applications || []);
-      setTalentPool(talentRes?.data?.candidates || []);
+      const initialJobs = jobsRes?.data?.jobs || [];
+      const initialApps = appsRes?.data?.applications || [];
+      const initialTalent = talentRes?.data?.candidates || [];
+
+      // Auto-seed enterprise demo workspace if brand new/empty so user is never greeted with a blank screen
+      if (initialJobs.length === 0 && initialApps.length === 0) {
+        try {
+          await api.seedCompanyDemoWorkspace();
+          const [seededJobs, seededApps] = await Promise.all([
+            api.getCompanyJobs().catch(() => null),
+            api.getAllCompanyApplications().catch(() => null),
+          ]);
+          setJobs(seededJobs?.data?.jobs || []);
+          setApplications(seededApps?.data?.applications || []);
+        } catch {
+          setJobs(initialJobs);
+          setApplications(initialApps);
+        }
+      } else {
+        setJobs(initialJobs);
+        setApplications(initialApps);
+      }
+      setTalentPool(initialTalent);
     } catch (err: any) {
       console.warn('Dashboard load error:', err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSeedDemoWorkspace = async () => {
+    setSeedingDemo(true);
+    try {
+      const res = await api.seedCompanyDemoWorkspace();
+      if (res?.success) {
+        const [freshJobs, freshApps, freshTalent] = await Promise.all([
+          api.getCompanyJobs().catch(() => null),
+          api.getAllCompanyApplications().catch(() => null),
+          api.getTalentPool().catch(() => null),
+        ]);
+        setJobs(freshJobs?.data?.jobs || []);
+        setApplications(freshApps?.data?.applications || []);
+        if (freshTalent?.data?.candidates) {
+          setTalentPool(freshTalent.data.candidates);
+        }
+        Alert.alert(
+          'Workspace Seeded Successfully',
+          'Enterprise job openings and verified candidate applications have been loaded into your workspace.'
+        );
+      } else {
+        Alert.alert('Notice', res?.message || 'Could not seed workspace.');
+      }
+    } catch (err: any) {
+      Alert.alert('Demo Error', err.response?.data?.message || err.message || 'Failed to populate demo workspace.');
+    } finally {
+      setSeedingDemo(false);
+    }
+  };
+
+  const handleApplyJobTemplate = (tmpl: (typeof JOB_TEMPLATES)[0]) => {
+    setJobTitle(tmpl.title);
+    setTargetRole(tmpl.targetRole);
+    setJobLocation(tmpl.location);
+    setSalaryRange(tmpl.salaryRange);
+    setJobType(tmpl.type);
+    setExperienceLevel(tmpl.experience);
+    setJobRequirements(tmpl.requirements);
+    setJobDesc(tmpl.description);
+    setPostJobModalVisible(true);
   };
 
   const handleLogout = async () => {
@@ -442,16 +558,21 @@ export default function CompanyDashboardScreen() {
     );
   };
 
-  const handleVerifyCredential = async () => {
-    if (!searchCredId.trim()) {
+  const runVerifyCredential = async (credIdToVerify?: string) => {
+    const targetId = (credIdToVerify || searchCredId).trim();
+    if (!targetId) {
       Alert.alert('Empty Credential ID', 'Please enter a Credential ID (e.g. AIM-CERT-2026-XXXXXX)');
       return;
+    }
+
+    if (credIdToVerify) {
+      setSearchCredId(credIdToVerify);
     }
 
     setVerifying(true);
     setVerifiedResult(null);
     try {
-      const res = await api.verifyCandidateCredential(searchCredId.trim());
+      const res = await api.verifyCandidateCredential(targetId);
       if (res.success && res.data?.credential) {
         setVerifiedResult(res.data.credential);
       } else {
@@ -463,6 +584,86 @@ export default function CompanyDashboardScreen() {
       setVerifying(false);
     }
   };
+
+  const handleVerifyCredential = () => runVerifyCredential();
+
+  const filteredApplications = applications.filter((app) => {
+    const query = appSearchQuery.trim().toLowerCase();
+    const matchesQuery =
+      !query ||
+      (app.fullName || '').toLowerCase().includes(query) ||
+      (app.job?.title || '').toLowerCase().includes(query) ||
+      (app.email || '').toLowerCase().includes(query);
+
+    const matchesStatus =
+      appStatusFilter === 'ALL' || app.status === appStatusFilter;
+
+    return matchesQuery && matchesStatus;
+  });
+
+  const filteredTalent = talentPool.filter((c) => {
+    const query = talentSearchQuery.trim().toLowerCase();
+    const matchesQuery =
+      !query ||
+      (c.name || '').toLowerCase().includes(query) ||
+      (c.targetRole || '').toLowerCase().includes(query) ||
+      (c.skills || '').toLowerCase().includes(query);
+
+    const roleFilter = talentRoleFilter.trim().toLowerCase();
+    const matchesRole =
+      talentRoleFilter === 'ALL' ||
+      (c.targetRole || '').toLowerCase().includes(roleFilter);
+
+    return matchesQuery && matchesRole;
+  });
+
+  const renderKpiMetrics = () => (
+    <View style={styles.kpiContainer}>
+      <View style={styles.kpiCard}>
+        <View style={styles.kpiHeader}>
+          <Ionicons name="briefcase" size={15} color="#38BDF8" />
+          <Text style={styles.kpiLabel}>ACTIVE JOBS</Text>
+        </View>
+        <Text style={styles.kpiValue}>
+          {jobs.filter((j) => j.status === 'ACTIVE').length}
+        </Text>
+        <Text style={styles.kpiSub}>Live Postings</Text>
+      </View>
+
+      <View style={styles.kpiCard}>
+        <View style={styles.kpiHeader}>
+          <Ionicons name="document-text" size={15} color="#00F5D4" />
+          <Text style={styles.kpiLabel}>APPLICANTS</Text>
+        </View>
+        <Text style={[styles.kpiValue, { color: '#00F5D4' }]}>
+          {applications.length}
+        </Text>
+        <Text style={styles.kpiSub}>Received CVs</Text>
+      </View>
+
+      <View style={styles.kpiCard}>
+        <View style={styles.kpiHeader}>
+          <Ionicons name="ribbon" size={15} color="#F59E0B" />
+          <Text style={styles.kpiLabel}>SHORTLISTED</Text>
+        </View>
+        <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>
+          {applications.filter((a) => a.status === 'SHORTLISTED' || a.status === 'INTERVIEWING').length}
+        </Text>
+        <Text style={styles.kpiSub}>In Pipeline</Text>
+      </View>
+
+      <View style={styles.kpiCard}>
+        <View style={styles.kpiHeader}>
+          <Ionicons name="people" size={15} color="#10B981" />
+          <Text style={styles.kpiLabel}>TALENT POOL</Text>
+        </View>
+        <Text style={[styles.kpiValue, { color: '#10B981' }]}>
+          {talentPool.length}
+        </Text>
+        <Text style={styles.kpiSub}>Pre-Vetted</Text>
+      </View>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -594,6 +795,22 @@ export default function CompanyDashboardScreen() {
 
           <View style={styles.topBarActions}>
             <TouchableOpacity
+              style={styles.demoWorkspaceBtn}
+              onPress={handleSeedDemoWorkspace}
+              disabled={seedingDemo}
+              activeOpacity={0.8}
+            >
+              {seedingDemo ? (
+                <ActivityIndicator size="small" color="#00F5D4" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={13} color="#00F5D4" />
+                  <Text style={styles.demoWorkspaceBtnText}>Demo Data</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.postJobBtn}
               onPress={() => setPostJobModalVisible(true)}
               activeOpacity={0.8}
@@ -697,9 +914,55 @@ export default function CompanyDashboardScreen() {
 
         {/* Tab 1: Posted Jobs */}
         {activeTab === 'jobs' && (
-          <ScrollView contentContainerStyle={styles.tabContent}>
+          <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+            {/* Top Executive KPI Metrics */}
+            {renderKpiMetrics()}
+
+            {/* 1-Tap Enterprise Job Blueprints */}
+            <View style={styles.blueprintsContainer}>
+              <View style={styles.blueprintsHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="flash" size={14} color="#00F5D4" />
+                  <Text style={styles.blueprintsTitle}>1-TAP ENTERPRISE JOB BLUEPRINTS</Text>
+                </View>
+                <Text style={styles.blueprintsSub}>Tap any template to customize & publish</Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.blueprintsScroll}>
+                {JOB_TEMPLATES.map((tmpl, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.blueprintCard}
+                    onPress={() => handleApplyJobTemplate(tmpl)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.blueprintTop}>
+                      <Text style={styles.blueprintRole}>{tmpl.targetRole}</Text>
+                      <View style={styles.blueprintBadge}>
+                        <Text style={styles.blueprintBadgeText}>{tmpl.experience}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.blueprintJobTitle} numberOfLines={1}>{tmpl.title}</Text>
+                    <Text style={styles.blueprintMeta}>{tmpl.location} • {tmpl.salaryRange}</Text>
+                    <View style={styles.blueprintBtnRow}>
+                      <Text style={styles.blueprintBtnText}>⚡ Use Blueprint</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Active Job Openings</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>Active Job Openings ({jobs.length})</Text>
+                <TouchableOpacity
+                  style={styles.miniPostBtn}
+                  onPress={() => setPostJobModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={14} color="#070C12" />
+                  <Text style={styles.miniPostBtnText}>Create Opening</Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.sectionSubtitle}>
                 Published live to candidate Target Companies. Tap any card to inspect details.
               </Text>
@@ -710,14 +973,32 @@ export default function CompanyDashboardScreen() {
                 <Ionicons name="briefcase-outline" size={44} color="#64748B" />
                 <Text style={styles.emptyTitle}>No Job Postings Yet</Text>
                 <Text style={styles.emptySubtitle}>
-                  Post your first engineering opening to receive certified applications.
+                  Post your first engineering opening or initialize the enterprise demo workspace to test applicant telemetry.
                 </Text>
-                <TouchableOpacity
-                  style={styles.emptyBtn}
-                  onPress={() => setPostJobModalVisible(true)}
-                >
-                  <Text style={styles.emptyBtnText}>+ Post a Job Opening</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity
+                    style={styles.emptyDemoBtn}
+                    onPress={handleSeedDemoWorkspace}
+                    disabled={seedingDemo}
+                    activeOpacity={0.8}
+                  >
+                    {seedingDemo ? (
+                      <ActivityIndicator size="small" color="#070C12" />
+                    ) : (
+                      <>
+                        <Ionicons name="sparkles" size={14} color="#070C12" />
+                        <Text style={styles.emptyDemoBtnText}>⚡ Seed Demo Workspace</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.emptyBtn}
+                    onPress={() => setPostJobModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.emptyBtnText}>+ Custom Job</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : (
               jobs.map((job) => (
@@ -776,165 +1057,308 @@ export default function CompanyDashboardScreen() {
 
         {/* Tab 2: Candidate Applications */}
         {activeTab === 'applications' && (
-          <ScrollView contentContainerStyle={styles.tabContent}>
+          <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+            {/* Top Executive KPI Metrics */}
+            {renderKpiMetrics()}
+
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Received Candidate Applications</Text>
+              <Text style={styles.sectionTitle}>Received Candidate Applications ({applications.length})</Text>
               <Text style={styles.sectionSubtitle}>
-                Candidates who applied with verified CVs & Cover Letters
+                Candidates who applied with verified CVs, Readiness Scores & Cover Letters
               </Text>
             </View>
 
-            {applications.length === 0 ? (
+            {/* Search and Filters */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBar}>
+                <Ionicons name="search" size={16} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search applicants by name, role or email..."
+                  placeholderTextColor="#64748B"
+                  value={appSearchQuery}
+                  onChangeText={setAppSearchQuery}
+                />
+                {appSearchQuery ? (
+                  <TouchableOpacity onPress={() => setAppSearchQuery('')}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Status Filter Pills */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsScroll}>
+                {(['ALL', 'SHORTLISTED', 'REVIEWING', 'INTERVIEWING', 'REJECTED'] as const).map((st) => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[styles.filterPill, appStatusFilter === st && styles.filterPillActive]}
+                    onPress={() => setAppStatusFilter(st)}
+                  >
+                    <Text style={[styles.filterPillText, appStatusFilter === st && styles.filterPillTextActive]}>
+                      {st === 'ALL' ? `All (${applications.length})` : st}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {filteredApplications.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="document-text-outline" size={44} color="#64748B" />
-                <Text style={styles.emptyTitle}>No Applications Received Yet</Text>
-                <Text style={styles.emptySubtitle}>
-                  When candidates apply from Target Companies, their CVs and details appear here in real-time.
+                <Text style={styles.emptyTitle}>
+                  {applications.length === 0 ? 'No Applications Received Yet' : 'No Matching Applicants'}
                 </Text>
+                <Text style={styles.emptySubtitle}>
+                  {applications.length === 0
+                    ? 'When candidates apply from Target Companies, their verified credentials appear here. You can also populate demo applications to test reviewing.'
+                    : 'Try clearing your search query or switching the status filter.'}
+                </Text>
+                {applications.length === 0 && (
+                  <TouchableOpacity
+                    style={styles.emptyDemoBtn}
+                    onPress={handleSeedDemoWorkspace}
+                    disabled={seedingDemo}
+                    activeOpacity={0.8}
+                  >
+                    {seedingDemo ? (
+                      <ActivityIndicator size="small" color="#070C12" />
+                    ) : (
+                      <>
+                        <Ionicons name="sparkles" size={14} color="#070C12" />
+                        <Text style={styles.emptyDemoBtnText}>⚡ Populate Demo Applications</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
-              applications.map((app) => (
-                <View key={app.id} style={styles.appCard}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1, paddingRight: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <Text style={styles.candidateName}>{app.fullName}</Text>
-                        {app.hasCertificate && (
-                          <View style={styles.certBadge}>
-                            <Ionicons name="ribbon" size={12} color="#00F5D4" />
-                            <Text style={styles.certBadgeText}>CERTIFIED</Text>
+              filteredApplications.map((app) => {
+                const score = app.readinessScore || 85;
+                const scoreColor = score >= 90 ? '#10B981' : score >= 80 ? '#00F5D4' : '#F59E0B';
+
+                return (
+                  <View key={app.id} style={styles.appCard}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <Text style={styles.candidateName}>{app.fullName}</Text>
+                          {app.hasCertificate && (
+                            <View style={styles.certBadge}>
+                              <Ionicons name="ribbon" size={12} color="#00F5D4" />
+                              <Text style={styles.certBadgeText}>CERTIFIED</Text>
+                            </View>
+                          )}
+                          <View style={[styles.statusBadge, { backgroundColor: 'rgba(56, 189, 248, 0.12)' }]}>
+                            <Text style={[styles.statusBadgeText, { color: '#38BDF8' }]}>{app.status || 'PENDING'}</Text>
                           </View>
-                        )}
+                        </View>
+                        <Text style={styles.appJobApplied}>
+                          Applied for: <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{app.job?.title || 'Engineering Role'}</Text>
+                        </Text>
                       </View>
-                      <Text style={styles.appJobApplied}>
-                        Applied for: <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{app.job?.title || 'Engineering Role'}</Text>
-                      </Text>
+
+                      <View style={styles.scoreBox}>
+                        <Text style={[styles.scoreBoxVal, { color: scoreColor }]}>{score}%</Text>
+                        <Text style={styles.scoreBoxLabel}>READINESS</Text>
+                      </View>
                     </View>
 
-                    <View style={styles.scoreBox}>
-                      <Text style={styles.scoreBoxVal}>{app.readinessScore || 85}%</Text>
-                      <Text style={styles.scoreBoxLabel}>READINESS</Text>
+                    {/* Readiness progress mini-bar */}
+                    <View style={styles.scoreBarTrack}>
+                      <View style={[styles.scoreBarFill, { width: `${Math.min(score, 100)}%`, backgroundColor: scoreColor }]} />
                     </View>
-                  </View>
 
-                  <View style={styles.contactRow}>
-                    <Text style={styles.contactItem}>📧 {app.email}</Text>
-                    {app.phone && <Text style={styles.contactItem}>📞 {app.phone}</Text>}
-                  </View>
-
-                  {app.coverLetter && (
-                    <View style={styles.coverLetterBox}>
-                      <Text style={styles.coverLetterLabel}>COVER LETTER:</Text>
-                      <Text style={styles.coverLetterText} numberOfLines={3}>
-                        {app.coverLetter}
-                      </Text>
+                    <View style={styles.contactRow}>
+                      <Text style={styles.contactItem}>📧 {app.email}</Text>
+                      {app.phone && <Text style={styles.contactItem}>📞 {app.phone}</Text>}
                     </View>
-                  )}
 
-                  <View style={styles.appActionsRow}>
-                    <TouchableOpacity
-                      style={styles.viewCvBtn}
-                      onPress={() => setSelectedApp(app)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="eye-outline" size={15} color="#070C12" />
-                      <Text style={styles.viewCvBtnText}>View Full Details & CV</Text>
-                    </TouchableOpacity>
+                    {app.coverLetter && (
+                      <View style={styles.coverLetterBox}>
+                        <Text style={styles.coverLetterLabel}>COVER LETTER:</Text>
+                        <Text style={styles.coverLetterText} numberOfLines={3}>
+                          {app.coverLetter}
+                        </Text>
+                      </View>
+                    )}
 
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={styles.appActionsRow}>
                       <TouchableOpacity
-                        style={[styles.statusActionBtn, { borderColor: '#10B981' }]}
-                        onPress={() => handleUpdateAppStatus(app.id, 'SHORTLISTED')}
+                        style={styles.viewCvBtn}
+                        onPress={() => setSelectedApp(app)}
+                        activeOpacity={0.8}
                       >
-                        <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>Shortlist</Text>
+                        <Ionicons name="eye-outline" size={15} color="#070C12" />
+                        <Text style={styles.viewCvBtnText}>Inspect Details & CV</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.statusActionBtn, { borderColor: '#EF4444' }]}
-                        onPress={() => handleUpdateAppStatus(app.id, 'REJECTED')}
-                      >
-                        <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '700' }}>Reject</Text>
-                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                        <TouchableOpacity
+                          style={[styles.statusActionBtn, { borderColor: '#10B981', backgroundColor: app.status === 'SHORTLISTED' ? 'rgba(16, 185, 129, 0.2)' : 'transparent' }]}
+                          onPress={() => handleUpdateAppStatus(app.id, 'SHORTLISTED')}
+                        >
+                          <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>Shortlist</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.statusActionBtn, { borderColor: '#38BDF8', backgroundColor: app.status === 'INTERVIEWING' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}
+                          onPress={() => handleUpdateAppStatus(app.id, 'INTERVIEWING')}
+                        >
+                          <Text style={{ color: '#38BDF8', fontSize: 11, fontWeight: '700' }}>Interview</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.statusActionBtn, { borderColor: '#EF4444' }]}
+                          onPress={() => handleUpdateAppStatus(app.id, 'REJECTED')}
+                        >
+                          <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '700' }}>Reject</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </ScrollView>
         )}
 
         {/* Tab 3: Talent Pool */}
         {activeTab === 'talent' && (
-          <ScrollView contentContainerStyle={styles.tabContent}>
+          <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+            {/* Top Executive KPI Metrics */}
+            {renderKpiMetrics()}
+
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Pre-Vetted Talent Pool</Text>
+              <Text style={styles.sectionTitle}>Pre-Vetted Talent Pool ({talentPool.length})</Text>
               <Text style={styles.sectionSubtitle}>
-                Verified engineers sorted by AI Mentor Readiness Mastery
+                Verified engineers with AI Mentor Readiness Mastery and technical drill telemetry
               </Text>
             </View>
 
-            {talentPool.map((c) => (
-              <View key={c.id} style={styles.talentCard}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <Text style={styles.candidateName}>{c.name}</Text>
-                      {c.stats?.hasCertificate && (
-                        <View style={styles.certBadge}>
-                          <Ionicons name="ribbon" size={12} color="#00F5D4" />
-                          <Text style={styles.certBadgeText}>CERTIFIED</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.talentRole}>{c.targetRole || 'Full Stack Engineer'}</Text>
-                  </View>
-
-                  <View style={styles.scoreBox}>
-                    <Text style={[styles.scoreBoxVal, { color: '#00F5D4' }]}>
-                      {c.readinessScore || 90}%
-                    </Text>
-                    <Text style={styles.scoreBoxLabel}>READINESS</Text>
-                  </View>
-                </View>
-
-                {c.skills && (
-                  <Text style={styles.talentSkills} numberOfLines={2}>
-                    🛠️ {c.skills}
-                  </Text>
-                )}
-
-                <View style={styles.talentStatsBar}>
-                  <Text style={styles.statPill}>🎯 {c.stats?.completedInterviews || 0} Interviews</Text>
-                  <Text style={styles.statPill}>💻 {c.stats?.solvedChallenges || 0} Drills</Text>
-                  <Text style={styles.statPill}>📜 {c.stats?.certificateCount || 0} Certs</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.contactTalentBtn}
-                  onPress={() => {
-                    if (c.email) {
-                      Linking.openURL(`mailto:${c.email}?subject=Career Opportunity from ${company?.name || 'Recruiter'}`);
-                    } else {
-                      Alert.alert('Candidate Contact', `${c.name} has a verified readiness score of ${c.readinessScore || 90}%.`);
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="mail-outline" size={14} color="#070C12" />
-                  <Text style={styles.contactTalentBtnText}>Contact Candidate</Text>
-                </TouchableOpacity>
+            {/* Talent Search and Role Filters */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBar}>
+                <Ionicons name="search" size={16} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search talent by name, role or skill..."
+                  placeholderTextColor="#64748B"
+                  value={talentSearchQuery}
+                  onChangeText={setTalentSearchQuery}
+                />
+                {talentSearchQuery ? (
+                  <TouchableOpacity onPress={() => setTalentSearchQuery('')}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
-            ))}
+
+              {/* Role Filter Pills */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsScroll}>
+                {['ALL', 'Full Stack', 'Mobile', 'Cloud', 'AI'].map((role) => (
+                  <TouchableOpacity
+                    key={role}
+                    style={[styles.filterPill, talentRoleFilter === role && styles.filterPillActive]}
+                    onPress={() => setTalentRoleFilter(role)}
+                  >
+                    <Text style={[styles.filterPillText, talentRoleFilter === role && styles.filterPillTextActive]}>
+                      {role === 'ALL' ? `All Talent (${talentPool.length})` : role}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {filteredTalent.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Ionicons name="people-outline" size={44} color="#64748B" />
+                <Text style={styles.emptyTitle}>No Candidates Match Search</Text>
+                <Text style={styles.emptySubtitle}>Try adjusting your talent search keywords or category filters.</Text>
+              </View>
+            ) : (
+              filteredTalent.map((c) => (
+                <View key={c.id} style={styles.talentCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Text style={styles.candidateName}>{c.name}</Text>
+                        {c.stats?.hasCertificate && (
+                          <View style={styles.certBadge}>
+                            <Ionicons name="ribbon" size={12} color="#00F5D4" />
+                            <Text style={styles.certBadgeText}>CERTIFIED</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.talentRole}>{c.targetRole || 'Full Stack Engineer'}</Text>
+                    </View>
+
+                    <View style={styles.scoreBox}>
+                      <Text style={[styles.scoreBoxVal, { color: '#00F5D4' }]}>
+                        {c.readinessScore || 90}%
+                      </Text>
+                      <Text style={styles.scoreBoxLabel}>READINESS</Text>
+                    </View>
+                  </View>
+
+                  {c.skills && (
+                    <Text style={styles.talentSkills} numberOfLines={2}>
+                      🛠️ {c.skills}
+                    </Text>
+                  )}
+
+                  <View style={styles.talentStatsBar}>
+                    <Text style={styles.statPill}>🎯 {c.stats?.completedInterviews || 0} Interviews</Text>
+                    <Text style={styles.statPill}>💻 {c.stats?.solvedChallenges || 0} Drills</Text>
+                    <Text style={styles.statPill}>📜 {c.stats?.certificateCount || 0} Certs</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.contactTalentBtn}
+                    onPress={() => {
+                      if (c.email) {
+                        Linking.openURL(`mailto:${c.email}?subject=Career Opportunity from ${company?.name || 'Recruiter'}`);
+                      } else {
+                        Alert.alert('Candidate Contact', `${c.name} has a verified readiness score of ${c.readinessScore || 90}%.`);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="mail-outline" size={14} color="#070C12" />
+                    <Text style={styles.contactTalentBtnText}>Contact Candidate / Invite to Interview</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
           </ScrollView>
         )}
 
         {/* Tab 4: Verify Credential */}
         {activeTab === 'verify' && (
-          <ScrollView contentContainerStyle={styles.tabContent}>
+          <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Instant Credential Verifier</Text>
               <Text style={styles.sectionSubtitle}>
-                Validate an applicant's official AI Mentor Credential ID
+                Validate an applicant's official AI Mentor Credential ID on the cryptographic ledger
               </Text>
+            </View>
+
+            {/* Quick Test Demo Chips */}
+            <View style={styles.quickVerifyContainer}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Ionicons name="flash" size={14} color="#00F5D4" />
+                <Text style={styles.quickVerifyLabel}>QUICK TEST PRE-VETTED CREDENTIALS:</Text>
+              </View>
+              <View style={styles.quickVerifyChipsRow}>
+                {DEMO_CREDENTIALS.map((cred) => (
+                  <TouchableOpacity
+                    key={cred.id}
+                    style={styles.quickVerifyChip}
+                    onPress={() => runVerifyCredential(cred.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="shield-checkmark" size={12} color="#00F5D4" />
+                    <Text style={styles.quickVerifyChipText}>{cred.name} ({cred.role})</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <View style={styles.verifyCard}>
@@ -942,7 +1366,7 @@ export default function CompanyDashboardScreen() {
               <View style={styles.verifyInputRow}>
                 <TextInput
                   style={styles.verifyInput}
-                  placeholder="e.g. AIM-CERT-2026-690802"
+                  placeholder="e.g. AIM-CERT-2026-545792"
                   placeholderTextColor="#64748B"
                   value={searchCredId}
                   onChangeText={setSearchCredId}
@@ -952,6 +1376,7 @@ export default function CompanyDashboardScreen() {
                   style={styles.verifyBtn}
                   onPress={handleVerifyCredential}
                   disabled={verifying}
+                  activeOpacity={0.8}
                 >
                   {verifying ? (
                     <ActivityIndicator color="#070C12" />
@@ -1571,18 +1996,83 @@ export default function CompanyDashboardScreen() {
                     </TouchableOpacity>
                   )}
 
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  {/* Direct Contact CTAs */}
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                     <TouchableOpacity
-                      style={[styles.statusModalBtn, { backgroundColor: '#10B981' }]}
+                      style={[styles.contactCandidateModalBtn, { flex: 1 }]}
+                      onPress={() => {
+                        Linking.openURL(
+                          `mailto:${selectedApp.email}?subject=Interview Invitation from ${company?.name || 'Recruiter'}&body=Dear ${selectedApp.fullName},%0D%0A%0D%0AWe reviewed your application for the ${selectedApp.job?.title || 'position'} and were very impressed with your AI Mentor readiness score of ${selectedApp.readinessScore || 85}%. We would like to schedule an interview with you.`
+                        );
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="mail" size={15} color="#00F5D4" />
+                      <Text style={styles.contactCandidateModalBtnText}>Send Interview Email</Text>
+                    </TouchableOpacity>
+
+                    {selectedApp.phone && (
+                      <TouchableOpacity
+                        style={[styles.contactCandidateModalBtn, { width: 44, paddingHorizontal: 0, justifyContent: 'center' }]}
+                        onPress={() => Linking.openURL(`tel:${selectedApp.phone}`)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="call" size={16} color="#00F5D4" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Workflow Pipeline Action Status Bar */}
+                  <Text style={[styles.inputLabel, { marginTop: 16, marginBottom: 8 }]}>MOVE PIPELINE STAGE:</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statusModalBtn,
+                        { borderColor: '#38BDF8', backgroundColor: selectedApp.status === 'REVIEWING' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' },
+                      ]}
+                      onPress={() => handleUpdateAppStatus(selectedApp.id, 'REVIEWING')}
+                    >
+                      <Text style={{ color: '#38BDF8', fontWeight: 'bold', fontSize: 12 }}>Reviewing</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.statusModalBtn,
+                        { borderColor: '#10B981', backgroundColor: selectedApp.status === 'SHORTLISTED' ? 'rgba(16, 185, 129, 0.2)' : 'transparent' },
+                      ]}
                       onPress={() => handleUpdateAppStatus(selectedApp.id, 'SHORTLISTED')}
                     >
-                      <Text style={{ color: '#070C12', fontWeight: 'bold' }}>Mark Shortlisted</Text>
+                      <Text style={{ color: '#10B981', fontWeight: 'bold', fontSize: 12 }}>Shortlist</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                      style={[styles.statusModalBtn, { backgroundColor: '#EF4444' }]}
+                      style={[
+                        styles.statusModalBtn,
+                        { borderColor: '#A855F7', backgroundColor: selectedApp.status === 'INTERVIEWING' ? 'rgba(168, 85, 247, 0.2)' : 'transparent' },
+                      ]}
+                      onPress={() => handleUpdateAppStatus(selectedApp.id, 'INTERVIEWING')}
+                    >
+                      <Text style={{ color: '#A855F7', fontWeight: 'bold', fontSize: 12 }}>Interview</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.statusModalBtn,
+                        { borderColor: '#00F5D4', backgroundColor: selectedApp.status === 'ACCEPTED' ? 'rgba(0, 245, 212, 0.2)' : 'transparent' },
+                      ]}
+                      onPress={() => handleUpdateAppStatus(selectedApp.id, 'ACCEPTED')}
+                    >
+                      <Text style={{ color: '#00F5D4', fontWeight: 'bold', fontSize: 12 }}>Hire / Offer</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.statusModalBtn,
+                        { borderColor: '#EF4444', backgroundColor: selectedApp.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.2)' : 'transparent' },
+                      ]}
                       onPress={() => handleUpdateAppStatus(selectedApp.id, 'REJECTED')}
                     >
-                      <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Reject</Text>
+                      <Text style={{ color: '#EF4444', fontWeight: 'bold', fontSize: 12 }}>Reject</Text>
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -1803,6 +2293,275 @@ export default function CompanyDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  demoWorkspaceBtn: {
+    backgroundColor: 'rgba(0, 245, 212, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 245, 212, 0.3)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  demoWorkspaceBtnText: {
+    color: '#00F5D4',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  miniPostBtn: {
+    backgroundColor: '#38BDF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  miniPostBtnText: {
+    color: '#070C12',
+    fontWeight: '800',
+    fontSize: 11,
+  },
+  emptyDemoBtn: {
+    backgroundColor: '#00F5D4',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyDemoBtnText: {
+    color: '#070C12',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  kpiContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: Spacing.md,
+    flexWrap: 'wrap',
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: '#0E1724',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  kpiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  kpiLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+  },
+  kpiValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  kpiSub: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  blueprintsContainer: {
+    backgroundColor: '#0B1321',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 245, 212, 0.2)',
+    marginBottom: Spacing.md,
+  },
+  blueprintsHeaderRow: {
+    marginBottom: 10,
+  },
+  blueprintsTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#00F5D4',
+    letterSpacing: 0.5,
+  },
+  blueprintsSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  blueprintsScroll: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  blueprintCard: {
+    width: 240,
+    backgroundColor: '#132034',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  blueprintTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  blueprintRole: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  blueprintBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  blueprintBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#38BDF8',
+  },
+  blueprintJobTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  blueprintMeta: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginBottom: 8,
+  },
+  blueprintBtnRow: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0, 245, 212, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  blueprintBtnText: {
+    color: '#00F5D4',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  searchContainer: {
+    marginBottom: 14,
+    gap: 8,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0E1724',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    gap: 8,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+  },
+  filterPillsScroll: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 2,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#0E1724',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  filterPillActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: '#38BDF8',
+  },
+  filterPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  filterPillTextActive: {
+    color: '#38BDF8',
+    fontWeight: '800',
+  },
+  scoreBarTrack: {
+    height: 4,
+    backgroundColor: '#1E293B',
+    borderRadius: 2,
+    marginVertical: 8,
+    overflow: 'hidden',
+  },
+  scoreBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  quickVerifyContainer: {
+    backgroundColor: '#0E1724',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    marginBottom: 14,
+  },
+  quickVerifyLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#00F5D4',
+    letterSpacing: 0.5,
+  },
+  quickVerifyChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  quickVerifyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#132034',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 245, 212, 0.2)',
+  },
+  quickVerifyChipText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  contactCandidateModalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0, 245, 212, 0.12)',
+    borderWidth: 1,
+    borderColor: '#00F5D4',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  contactCandidateModalBtnText: {
+    color: '#00F5D4',
+    fontWeight: '700',
+    fontSize: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: '#070C12',
