@@ -22,8 +22,8 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: ViewStyle | ViewStyle[];
+  textStyle?: TextStyle | TextStyle[];
   fullWidth?: boolean;
 }
 
@@ -38,10 +38,24 @@ export const Button: React.FC<ButtonProps> = ({
   textStyle,
   fullWidth = true,
 }) => {
+  const flattenedStyle = StyleSheet.flatten(style);
+  const flattenedTextStyle = StyleSheet.flatten(textStyle);
+  const hasFlex = flattenedStyle?.flex !== undefined;
+
+  const getContainerStyle = (): ViewStyle[] => {
+    const list: ViewStyle[] = [{ transform: [{ scale: scaleAnim }] }];
+    if (hasFlex) {
+      list.push({ flex: flattenedStyle.flex });
+    } else if (fullWidth) {
+      list.push(styles.fullWidth);
+    }
+    return list;
+  };
+
   const getButtonStyle = (): ViewStyle[] => {
     const base: ViewStyle[] = [styles.base];
 
-    if (fullWidth) base.push(styles.fullWidth);
+    if (fullWidth || hasFlex) base.push(styles.fullWidth);
 
     switch (variant) {
       case 'primary':
@@ -57,7 +71,7 @@ export const Button: React.FC<ButtonProps> = ({
     }
 
     if (disabled) base.push(styles.disabled);
-    if (style) base.push(style);
+    if (flattenedStyle) base.push(flattenedStyle);
 
     return base;
   };
@@ -78,7 +92,7 @@ export const Button: React.FC<ButtonProps> = ({
     }
 
     if (disabled) base.push(styles.textDisabled);
-    if (textStyle) base.push(textStyle);
+    if (flattenedTextStyle) base.push(flattenedTextStyle);
 
     return base;
   };
@@ -104,7 +118,7 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <Animated.View style={[{ transform: [{ scale: scaleAnim }] }, fullWidth && styles.fullWidth]}>
+    <Animated.View style={getContainerStyle()}>
       <TouchableOpacity
         style={getButtonStyle()}
         onPress={onPress}

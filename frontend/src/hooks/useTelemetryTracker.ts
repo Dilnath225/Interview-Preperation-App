@@ -216,9 +216,14 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
       return;
     }
 
-    // 1. Request Foreground location permission
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
+    // 1. Check existing Foreground location permission first without re-prompting
+    let fgStatus = (await Location.getForegroundPermissionsAsync()).status;
+    if (fgStatus !== 'granted') {
+      const fgReq = await Location.requestForegroundPermissionsAsync();
+      fgStatus = fgReq.status;
+    }
+
+    if (fgStatus !== 'granted') {
       setPermissionGranted(false);
       return;
     }
@@ -234,10 +239,15 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
       // Fallback silently to subscription
     }
 
-    // 2. Request & Enable 24/7 Background Updates on Native Devices
+    // 2. Check existing Background permission first without re-prompting
     try {
-      const bgStatus = await Location.requestBackgroundPermissionsAsync();
-      if (bgStatus.status === 'granted') {
+      let bgStatus = (await Location.getBackgroundPermissionsAsync()).status;
+      if (bgStatus !== 'granted') {
+        const bgReq = await Location.requestBackgroundPermissionsAsync();
+        bgStatus = bgReq.status;
+      }
+
+      if (bgStatus === 'granted') {
         const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
         if (!isRegistered) {
           await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {

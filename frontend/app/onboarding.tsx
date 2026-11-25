@@ -8,7 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -17,8 +17,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../src/constants/theme';
 import { Button } from '../src/components/Button';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Slide {
   id: string;
@@ -50,6 +48,7 @@ const slides: Slide[] = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef<any>(null);
 
@@ -194,7 +193,7 @@ export default function OnboardingScreen() {
         style={styles.slideScroll}
       >
         {slides.map((slide) => (
-          <View key={slide.id} style={styles.slide}>
+          <View key={slide.id} style={[styles.slide, { width: SCREEN_WIDTH }]}>
             <View style={styles.graphicSection}>
               {renderIllustration(slide.type)}
             </View>
@@ -244,21 +243,34 @@ export default function OnboardingScreen() {
               title="Back"
               onPress={handleBack}
               variant="secondary"
+              fullWidth={false}
               style={styles.halfBtn}
             />
             <Button
-              title="Next"
+              title="Next  →"
               onPress={handleNext}
               variant="primary"
+              fullWidth={false}
               style={styles.halfBtn}
             />
           </View>
         ) : (
-          <Button
-            title="Get Started  →"
-            onPress={() => router.replace('/portal-select')}
-            variant="primary"
-          />
+          <View style={styles.buttonRow}>
+            <Button
+              title="Back"
+              onPress={handleBack}
+              variant="secondary"
+              fullWidth={false}
+              style={styles.halfBtn}
+            />
+            <Button
+              title="Get Started  →"
+              onPress={() => router.replace('/portal-select')}
+              variant="primary"
+              fullWidth={false}
+              style={styles.halfBtnPrimary}
+            />
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -292,7 +304,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slide: {
-    width: SCREEN_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
@@ -545,5 +556,8 @@ const styles = StyleSheet.create({
   },
   halfBtn: {
     flex: 1,
+  },
+  halfBtnPrimary: {
+    flex: 1.8,
   },
 });
