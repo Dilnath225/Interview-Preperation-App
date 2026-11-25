@@ -8,6 +8,8 @@ jobs:
     name: Build Unsigned iOS IPA
     runs-on: macos-latest
     timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_URL: https://ai-mentor-backend-121422847816.asia-south1.run.app
 
     defaults:
       run:

@@ -3,20 +3,49 @@
  *
  * Capabilities:
  *  1. Foreground high-precision Socket.io streaming with active module tagging.
- *  2. 24/7 Continuous Background Tracking (phone locked / app minimized) via
+ *  2. HTTP Fallback: Always dispatches telemetry even when WebSockets are disconnected.
+ *  3. 24/7 Continuous Background Tracking (phone locked / app minimized) via
  *     expo-task-manager and direct lightweight HTTP telemetry pings.
- *  3. Seamless cross-platform support (iOS native, Android native, Web).
+ *  4. Universal Token retrieval across SecureStore, AsyncStorage, and Web storage.
+ *  5. Direct Google Cloud Run backend routing (production-ready).
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const BACKGROUND_LOCATION_TASK = 'AI_MENTOR_247_LOCATION_TASK';
 
+// Default to live Google Cloud Run production backend
+const DEFAULT_API_URL = 'https://ai-mentor-backend-121422847816.asia-south1.run.app';
+
 const API_URL =
-  (typeof process !== 'undefined' && (process.env as any).EXPO_PUBLIC_API_URL) || 'http://localhost:5000';
+  (typeof process !== 'undefined' && (process.env as any).EXPO_PUBLIC_API_URL) || DEFAULT_API_URL;
+
+// ── Universal Token Getter (SecureStore + SafeStorage + AsyncStorage) ──
+async function getStoredToken(): Promise<string | null> {
+  const keys = ['ai_mentor_auth_token', 'auth_token', 'token'];
+  for (const k of keys) {
+    if (Platform.OS === 'web') {
+      try {
+        const val = typeof localStorage !== 'undefined' ? localStorage.getItem(k) : null;
+        if (val) return val;
+      } catch {}
+    } else {
+      try {
+        const val = await SecureStore.getItemAsync(k);
+        if (val) return val;
+      } catch {}
+    }
+    try {
+      const val = await AsyncStorage.getItem(k);
+      if (val) return val;
+    } catch {}
+  }
+  return null;
+}
 
 // ── Socket.io client (lazy import) ──
 let ioConnect: any = null;
@@ -40,7 +69,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: any) =>
     const loc = locations && locations[0];
     if (loc && loc.coords) {
       try {
-        const token = await AsyncStorage.getItem('token');
+        const token = await getStoredToken();
         if (!token) return;
 
         // Dispatch lightweight REST HTTP telemetry ping
@@ -91,20 +120,20 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
   const connectSocket = useCallback(async () => {
     if (!ioConnect || socketRef.current?.connected) return;
 
-    const token = await AsyncStorage.getItem('token');
+    const token = await getStoredToken();
     if (!token) return;
 
     const socket = ioConnect(API_URL, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 3000,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 2000,
     });
 
     socket.on('connect', () => {
       setIsConnected(true);
-      console.log('📡 Telemetry socket connected');
+      console.log('📡 Telemetry socket connected to:', API_URL);
     });
 
     socket.on('disconnect', () => {
@@ -118,18 +147,40 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     socketRef.current = socket;
   }, []);
 
-  // ── Send a live location ping (foreground) ──
+  // ── Send a live location ping (foreground: socket + HTTP fallback) ──
   const sendPing = useCallback(
-    (location: Location.LocationObject) => {
-      if (!socketRef.current?.connected) return;
-
-      socketRef.current.emit('telemetry:location_ping', {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracy: location.coords.accuracy ?? undefined,
-        activityContext,
-        timestamp: Date.now(),
-      });
+    async (location: Location.LocationObject) => {
+      // 1. Socket emission if live
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('telemetry:location_ping', {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          accuracy: location.coords.accuracy ?? undefined,
+          activityContext,
+          timestamp: Date.now(),
+        });
+      } else {
+        // 2. Direct HTTP ping fallback (works 100% even if socket is disconnected)
+        try {
+          const token = await getStoredToken();
+          if (token) {
+            fetch(`${API_URL}/api/telemetry/ping`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                accuracy: location.coords.accuracy ?? undefined,
+                activityContext,
+                timestamp: Date.now(),
+              }),
+            }).catch(() => {});
+          }
+        } catch {}
+      }
     },
     [activityContext]
   );
