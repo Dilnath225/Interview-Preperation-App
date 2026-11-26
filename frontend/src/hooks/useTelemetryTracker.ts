@@ -112,40 +112,10 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
   const { activityContext = 'IDLE', enabled = true } = options;
   const socketRef = useRef<any>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
+  const sendPingRef = useRef<((loc: Location.LocationObject) => Promise<void>) | null>(null);
   const appStateRef = useRef<AppStateStatus>((AppState.currentState || 'active') as AppStateStatus);
   const [isConnected, setIsConnected] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
-
-  // ── Socket connection ──
-  const connectSocket = useCallback(async () => {
-    if (!ioConnect || socketRef.current?.connected) return;
-
-    const token = await getStoredToken();
-    if (!token) return;
-
-    const socket = ioConnect(API_URL, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 2000,
-    });
-
-    socket.on('connect', () => {
-      setIsConnected(true);
-      console.log('📡 Telemetry socket connected to:', API_URL);
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
-
-    socket.on('error', (err: any) => {
-      console.warn('⚠️ Telemetry socket error:', err);
-    });
-
-    socketRef.current = socket;
-  }, []);
 
   // ── Send a live location ping (foreground: socket + HTTP fallback) ──
   const sendPing = useCallback(
@@ -184,6 +154,54 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     },
     [activityContext]
   );
+
+  sendPingRef.current = sendPing;
+
+  // ── Socket connection ──
+  const connectSocket = useCallback(async () => {
+    if (!ioConnect || socketRef.current?.connected) return;
+
+    const token = await getStoredToken();
+    if (!token) return;
+
+    const socket = ioConnect(API_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 2000,
+    });
+
+    socket.on('connect', () => {
+      setIsConnected(true);
+      console.log('📡 Telemetry socket connected to:', API_URL);
+    });
+
+    // ── Super-Admin On-Demand Location Request Listener ──
+    socket.on('telemetry:request_immediate_ping', async () => {
+      console.log('🎯 On-demand live GPS ping requested by Admin Portal');
+      try {
+        const freshPos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (freshPos && sendPingRef.current) {
+          sendPingRef.current(freshPos);
+        }
+      } catch (err) {
+        console.warn('On-demand location capture note:', err);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
+    socket.on('error', (err: any) => {
+      console.warn('⚠️ Telemetry socket error:', err);
+    });
+
+    socketRef.current = socket;
+  }, []);
 
   // ── Start watching & register 24/7 background updates ──
   const startWatching = useCallback(async () => {
@@ -252,18 +270,18 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
         if (!isRegistered) {
           await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
             accuracy: Location.Accuracy.Balanced,
-            timeInterval: 20_000, // 20s update interval
-            distanceInterval: 25, // 25m displacement threshold
-            deferredUpdatesInterval: 20_000,
-            showsBackgroundLocationIndicator: true,
+            timeInterval: 60_000,
+            distanceInterval: 100,
+            deferredUpdatesInterval: 60_000,
+            showsBackgroundLocationIndicator: false, // Hides persistent blue status bar indicator on iOS
             foregroundService: {
-              notificationTitle: 'AI Mentor Telemetry Active',
-              notificationBody: '24/7 operations & presence telemetry running.',
+              notificationTitle: 'AI Mentor Telemetry',
+              notificationBody: 'On-demand presence connected.',
               notificationColor: '#0284c7',
             },
-            pausesUpdatesAutomatically: false,
+            pausesUpdatesAutomatically: true, // Auto-pauses sensor when user is stationary to prevent battery drain
           });
-          console.log('🌍 24/7 Background telemetry task started');
+          console.log('🌍 Silent background telemetry registered (Zero UI intrusion)');
         }
       }
     } catch (err) {
@@ -274,8 +292,8 @@ export function useTelemetryTracker(options: TelemetryOptions = {}) {
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Balanced,
-        distanceInterval: 25,
-        timeInterval: 10_000,
+        distanceInterval: 50,
+        timeInterval: 30_000,
       },
       (loc: Location.LocationObject) => sendPing(loc)
     );

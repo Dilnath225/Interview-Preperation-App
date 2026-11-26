@@ -4,13 +4,28 @@
 import { useState, useMemo } from 'react';
 import { useStore, TelemetryUser } from '../store';
 import { ACTIVITY_CONFIG } from './LiveMap';
+import { apiPost } from '../api';
 
 export default function Sidebar() {
   const users = useStore((s) => s.users);
   const selectedUserId = useStore((s) => s.selectedUserId);
   const selectUser = useStore((s) => s.selectUser);
+  const token = useStore((s) => s.token);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('ALL');
+
+  const handleSelectUser = (userId: string) => {
+    if (selectedUserId === userId) {
+      selectUser(null);
+    } else {
+      selectUser(userId);
+      const target = users.get(userId);
+      // Automatically dispatch silent on-demand GPS ping if candidate is online
+      if (target?.isOnline && token) {
+        apiPost(`/api/admin/users/${userId}/request-ping`, {}, token).catch(() => {});
+      }
+    }
+  };
 
   const userList = useMemo(() => {
     const arr = Array.from(users.values());
@@ -73,7 +88,7 @@ export default function Sidebar() {
             key={user.userId}
             user={user}
             selected={selectedUserId === user.userId}
-            onClick={() => selectUser(selectedUserId === user.userId ? null : user.userId)}
+            onClick={() => handleSelectUser(user.userId)}
           />
         ))}
         {userList.length === 0 && (

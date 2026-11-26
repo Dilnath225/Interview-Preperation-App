@@ -69,6 +69,22 @@ export function broadcastLiveTelemetryPing(data: {
   }
 }
 
+/**
+ * Triggers an instant on-demand location ping on a connected client device.
+ * Used when Super-Admin inspects or focuses on a specific user in the Admin Portal.
+ */
+export function requestClientLocationPing(targetUserId: string): boolean {
+  if (!telemetryIo) return false;
+  const entry = onlineUsers.get(targetUserId);
+  if (entry && entry.socketId) {
+    telemetryIo.to(entry.socketId).emit('telemetry:request_immediate_ping', {
+      requestedAt: Date.now(),
+    });
+    return true;
+  }
+  return false;
+}
+
 export function initTelemetrySocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -176,6 +192,23 @@ export function initTelemetrySocket(httpServer: HttpServer): Server {
         if (typeof ack === 'function') ack({ success: true, trail: logs });
       } catch (err) {
         if (typeof ack === 'function') ack({ success: false, error: 'DB_ERROR' });
+      }
+    });
+
+    // ── Admin: trigger on-demand live GPS ping for a specific candidate ──
+    socket.on('admin:request_ping', (payload: { targetUserId: string }, ack) => {
+      if (user.role !== 'SUPER_ADMIN' || user.email !== ENV.SUPER_ADMIN_EMAIL) {
+        if (typeof ack === 'function') ack({ success: false, error: 'FORBIDDEN' });
+        return;
+      }
+      const sent = requestClientLocationPing(payload.targetUserId);
+      if (typeof ack === 'function') {
+        ack({
+          success: sent,
+          message: sent
+            ? 'On-demand location ping dispatched to user device.'
+            : 'Candidate device is currently disconnected.',
+        });
       }
     });
 

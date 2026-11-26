@@ -69,6 +69,34 @@ export default function LiveMap() {
   const updateUser = useStore((s) => s.updateUser);
 
   const [simulating, setSimulating] = useState(false);
+  const [pingingDevice, setPingingDevice] = useState(false);
+  const [pingStatus, setPingStatus] = useState<string | null>(null);
+
+  // Trigger On-Demand Live GPS Ping to the user's real physical device
+  const handleRequestLiveDevicePing = async () => {
+    if (!selectedUser || !token || pingingDevice) return;
+    setPingingDevice(true);
+    setPingStatus('📡 Pinging mobile device for on-demand GPS...');
+    try {
+      const res = await apiPost(`/api/admin/users/${selectedUser.userId}/request-ping`, {}, token);
+      if (res.success) {
+        setPingStatus(
+          res.sent
+            ? '✓ Signal dispatched! Device updating coordinates...'
+            : 'Device currently disconnected (showing last known position).'
+        );
+      } else {
+        setPingStatus('Ping dispatch failed.');
+      }
+    } catch (err: any) {
+      setPingStatus('Ping error.');
+    } finally {
+      setTimeout(() => {
+        setPingingDevice(false);
+        setTimeout(() => setPingStatus(null), 4500);
+      }, 1200);
+    }
+  };
 
   const usersWithCoords = useMemo(
     () => Array.from(users.values()).filter((u) => u.latitude !== null && u.longitude !== null),
@@ -221,30 +249,56 @@ export default function LiveMap() {
               </div>
             )}
 
-            <div className="pt-2 border-t border-slate-800/80">
-              {selectedUser.latitude != null && selectedUser.longitude != null ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Live GPS:</span>
-                    <span className="text-cyan-400 font-mono text-[11px]">
-                      {selectedUser.latitude.toFixed(4)}, {selectedUser.longitude.toFixed(4)}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-                    ✓ Telemetry active & pinned to map
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed">
-                    ⚠️ <strong>No GPS telemetry received yet.</strong> Coordinates will pin automatically once this candidate logs into the updated mobile app.
-                  </div>
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Live GPS:</span>
+                <span className="text-cyan-400 font-mono text-[11px]">
+                  {selectedUser.latitude != null && selectedUser.longitude != null
+                    ? `${selectedUser.latitude.toFixed(4)}, ${selectedUser.longitude.toFixed(4)}`
+                    : 'Awaiting device ping'}
+                </span>
+              </div>
+
+              {selectedUser.latitude != null && selectedUser.longitude != null && (
+                <p className="text-[10px] text-emerald-400 flex items-center gap-1">
+                  ✓ Coordinates pinned to map
+                </p>
+              )}
+
+              {/* On-Demand Device Ping Action */}
+              <button
+                onClick={handleRequestLiveDevicePing}
+                disabled={pingingDevice || !selectedUser.isOnline}
+                className={`w-full py-2 px-3 rounded-lg text-xs font-semibold shadow transition-all flex items-center justify-center gap-2 ${
+                  selectedUser.isOnline
+                    ? 'bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-white cursor-pointer active:scale-[0.98]'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                }`}
+              >
+                <span>{pingingDevice ? '📡' : '🎯'}</span>
+                <span>
+                  {pingingDevice
+                    ? 'Pinging Device for Live GPS…'
+                    : selectedUser.isOnline
+                    ? 'Locate Now (On-Demand Silent Ping)'
+                    : 'Device Offline (Last Known Shown)'}
+                </span>
+              </button>
+
+              {pingStatus && (
+                <p className="text-[11px] text-center text-cyan-300 font-medium animate-pulse">
+                  {pingStatus}
+                </p>
+              )}
+
+              {selectedUser.latitude == null && (
+                <div className="pt-1">
                   <button
                     onClick={handleSimulatePing}
                     disabled={simulating}
-                    className="w-full py-1.5 px-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg text-xs shadow transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg text-[11px] border border-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
-                    {simulating ? 'Sending Ping…' : '⚡ Simulate GPS Ping (Test Colombo Pin)'}
+                    {simulating ? 'Sending Ping…' : '⚡ Simulate Test GPS Pin'}
                   </button>
                 </div>
               )}

@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 import { ENV } from '../config/env';
 import { prisma } from '../config/prisma';
 import { authenticate, AuthRequest } from '../middlewares/auth.middleware';
-import { broadcastLiveTelemetryPing } from '../sockets/telemetry';
+import { broadcastLiveTelemetryPing, requestClientLocationPing } from '../sockets/telemetry';
 
 const router = Router();
 
@@ -112,6 +112,28 @@ router.get(
         take: limit,
       });
       return res.json({ success: true, data: { trail: logs } });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+// ── Trigger on-demand live GPS ping for a specific user ──
+router.post(
+  '/users/:userId/request-ping',
+  authenticate,
+  superAdminGuard as any,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.params.userId as string;
+      const sent = requestClientLocationPing(userId);
+      return res.json({
+        success: true,
+        sent,
+        message: sent
+          ? 'On-demand location ping dispatched to device.'
+          : 'User device is currently offline or disconnected.',
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err.message });
     }
